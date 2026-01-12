@@ -53,7 +53,7 @@ const commonConfig: webpack.Configuration = {
 }
 
 export const main = merge({}, commonConfig, {
-  entry: { main: path.resolve(__dirname, 'src/main-process/main') },
+  entry: { main: path.resolve(__dirname, 'src/main-process/bootstrap') },
   target: 'electron-main',
   plugins: [
     new webpack.DefinePlugin(

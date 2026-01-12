@@ -388,6 +388,53 @@ export interface IAppState {
 
   /** Whether the changes filter is shown */
   readonly showChangesFilter: boolean
+
+  // ==========================================
+  // Multi-repo & Worktree UX Enhancements
+  // ==========================================
+
+  /**
+   * Whether the repository sidebar is docked (persistently visible)
+   * instead of being a temporary foldout overlay
+   */
+  readonly repositorySidebarDocked: boolean
+
+  /** The width of the docked repository sidebar */
+  readonly dockedRepositorySidebarWidth: IConstrainedValue
+
+  /** The width of the worktrees dropdown button in the toolbar */
+  readonly worktreesDropdownWidth: IConstrainedValue
+
+  /**
+   * The grouping mode for repositories in the repository list
+   * - 'owner': Group by GitHub owner (default)
+   * - 'folder': Group by custom user-defined folders
+   */
+  readonly repositoryGroupingMode: RepositoryGroupingMode
+
+  /**
+   * User-defined repository folders for custom grouping.
+   * Only used when repositoryGroupingMode is 'folder'.
+   */
+  readonly repositoryFolders: ReadonlyArray<IRepositoryFolder>
+
+  /**
+   * Mapping of repository IDs to folder IDs for custom grouping.
+   * Key is repository ID, value is folder ID.
+   */
+  readonly repositoryFolderAssignments: ReadonlyMap<number, number>
+
+  /**
+   * The order of repositories within folders (or ungrouped).
+   * Key is folder ID (or 0 for ungrouped), value is array of repository IDs in order.
+   */
+  readonly repositoryOrderInFolders: ReadonlyMap<number, ReadonlyArray<number>>
+
+  /**
+   * Map of expanded repository IDs in the repository sidebar.
+   * Expanded repositories show their worktrees as nested items.
+   */
+  readonly expandedRepositories: ReadonlySet<number>
 }
 
 export enum FoldoutType {
@@ -396,6 +443,29 @@ export enum FoldoutType {
   AppMenu,
   AddMenu,
   PushPull,
+  Worktrees,
+}
+
+/**
+ * The grouping mode for repositories in the repository list
+ */
+export type RepositoryGroupingMode = 'owner' | 'folder'
+
+/**
+ * A user-defined folder for grouping repositories
+ */
+export interface IRepositoryFolder {
+  /** Unique identifier for the folder */
+  readonly id: number
+
+  /** Display name of the folder */
+  readonly name: string
+
+  /** Order of the folder in the list (lower numbers appear first) */
+  readonly order: number
+
+  /** Whether the folder is collapsed in the UI */
+  readonly isCollapsed: boolean
 }
 
 export type AppMenuFoldout = {
@@ -419,6 +489,7 @@ export type Foldout =
   | BranchFoldout
   | AppMenuFoldout
   | { type: FoldoutType.PushPull }
+  | { type: FoldoutType.Worktrees }
 
 export enum RepositorySectionTab {
   Changes,
@@ -601,6 +672,9 @@ export interface IRepositoryState {
    * by means of passing the `--no-verify` flag to git commit
    */
   readonly skipCommitHooks: boolean
+
+  /** The worktrees state for this repository */
+  readonly worktreesState: IWorktreesState
 }
 
 export type CommitOptions = Pick<IRepositoryState, 'skipCommitHooks'>
@@ -666,6 +740,49 @@ export interface IBranchesState {
 
   /** Tracking branches that have been allowed to be force-pushed within Desktop */
   readonly forcePushBranches: ReadonlyMap<string, string>
+}
+
+/**
+ * State for worktrees associated with a repository
+ */
+export interface IWorktreesState {
+  /**
+   * All worktrees for this repository, including the main worktree
+   */
+  readonly worktrees: ReadonlyArray<IWorktreeState>
+
+  /**
+   * The currently active worktree (the one the repository path points to)
+   */
+  readonly currentWorktree: IWorktreeState | null
+
+  /**
+   * Whether we're currently loading worktree information
+   */
+  readonly isLoadingWorktrees: boolean
+}
+
+/**
+ * Information about a single worktree
+ */
+export interface IWorktreeState {
+  /** The absolute path to the worktree */
+  readonly path: string
+
+  /** The SHA of the HEAD commit in this worktree */
+  readonly head: string
+
+  /** The branch checked out in this worktree, or null if detached HEAD */
+  readonly branch: string | null
+
+  /** Whether this is the main worktree (the original repository) */
+  readonly isMain: boolean
+
+  /** Whether the worktree is locked */
+  readonly isLocked: boolean
+
+  /** Whether the worktree path is missing from disk */
+  readonly isPrunable: boolean
 }
 
 export interface ICommitSelection {

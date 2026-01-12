@@ -27,6 +27,12 @@ interface IRepositoryListItemProps {
 
   /** Number of uncommitted changes */
   readonly changedFilesCount: number
+
+  /**
+   * Optional leading accessory rendered before the repository icon.
+   * Used by the docked sidebar folder view to add expand/collapse affordances.
+   */
+  readonly renderLeadingAccessory?: () => JSX.Element | null
 }
 
 /** A repository item. */
@@ -62,6 +68,8 @@ export class RepositoryListItem extends React.Component<
         >
           {this.renderTooltip()}
         </Tooltip>
+
+        {this.props.renderLeadingAccessory?.()}
 
         <Octicon
           className="icon-for-repository"

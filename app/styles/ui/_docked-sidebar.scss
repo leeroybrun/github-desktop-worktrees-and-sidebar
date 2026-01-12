@@ -1,0 +1,345 @@
+@import '../mixins';
+
+// Docked repository sidebar styles
+.docked-repository-sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--box-background-color);
+  border-right: var(--base-border);
+
+  .docked-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-half) var(--spacing);
+    border-bottom: var(--base-border);
+    flex-shrink: 0;
+
+    .docked-sidebar-title {
+      font-weight: var(--font-weight-semibold);
+      font-size: var(--font-size-md);
+      color: var(--text-color);
+    }
+
+    .docked-sidebar-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-third);
+
+      button {
+        padding: var(--spacing-third);
+        background: transparent;
+        border: none;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary-color);
+
+        &:hover {
+          background: var(--box-hover-background-color);
+          color: var(--text-color);
+        }
+
+        .octicon {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
+
+    .docked-sidebar-create-folder {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-third);
+      flex: 1;
+      min-width: 0;
+
+      .text-box-component {
+        flex: 1;
+        min-width: 0;
+      }
+
+      button {
+        padding: var(--spacing-third);
+        background: transparent;
+        border: none;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary-color);
+
+        &:hover {
+          background: var(--box-hover-background-color);
+          color: var(--text-color);
+        }
+
+        .octicon {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
+  }
+
+  .docked-repositories-list {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    > .repository-list {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    // Group header styling - keep minimal so we don't introduce odd padding
+    // inside fixed-height rows.
+    .filter-list-group-header {
+      padding: 0 var(--spacing);
+      font-weight: var(--font-weight-semibold);
+      text-overflow: ellipsis;
+      overflow-x: hidden;
+      white-space: nowrap;
+    }
+  }
+}
+
+// Nested worktrees shown as separate rows - follows branches-list-item pattern
+.nested-worktree-item {
+  padding: 0 var(--spacing);
+  // Indent worktrees under their parent repository
+  // Align roughly under the repository name (past leading accessory + repo icon)
+  padding-left: calc(var(--spacing) + var(--spacing) + 32px);
+  display: flex;
+  flex-direction: row;
+  min-width: 0;
+  flex-grow: 1;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+
+  .octicon {
+    margin-right: var(--spacing-half);
+    width: 16px;
+    flex-shrink: 0;
+  }
+
+  .worktree-name {
+    flex-grow: 2;
+    @include ellipsis;
+    max-width: 65%;
+    margin-right: var(--spacing-half);
+
+    mark {
+      font-weight: bold;
+      background-color: inherit;
+      color: currentColor;
+    }
+  }
+
+  .status-icon {
+    margin-right: var(--spacing-half);
+    color: var(--text-secondary-color);
+    width: 12px;
+    height: 12px;
+  }
+
+  &.current {
+    // Persistently indicate the active worktree without stealing the primary
+    // (blue) selection highlight from the repository row.
+    background-color: var(--box-selected-background-color);
+  }
+}
+
+// When a worktree row is clicked, the underlying list will briefly mark that
+// row as selected (blue, when focus-within). We don't want a blue flash; we
+// want the worktree row to always look like a "secondary" selection.
+.docked-repositories-list {
+  .list-item.selected {
+    .nested-worktree-item {
+      background-color: var(--box-selected-background-color);
+      color: var(--box-selected-text-color);
+    }
+  }
+}
+
+// Folder group header styles (used in folder grouping mode)
+.repository-folder-header.filter-list-group-header {
+  cursor: pointer;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  // Override generic group header padding (we want full-width hover/active area)
+  padding-top: 0;
+
+  &:hover {
+    background: var(--box-hover-background-color);
+  }
+
+  .folder-header-content {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-third);
+    min-width: 0;
+    width: 100%;
+  }
+
+  .folder-expand-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
+  .folder-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  .folder-name {
+    @include ellipsis;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .folder-actions-button {
+    flex-shrink: 0;
+    margin-left: var(--spacing-half);
+    padding: var(--spacing-third);
+    background: transparent;
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-secondary-color);
+    opacity: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      background: var(--box-hover-background-color);
+      color: var(--text-color);
+    }
+
+    .octicon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  &:hover .folder-actions-button {
+    opacity: 1;
+  }
+}
+
+// Ensure rows in the docked list stretch full-width so repo indicators align
+// flush right like the original repository dropdown.
+.docked-repositories-list {
+  .draggable,
+  .docked-repository-row {
+    flex: 1;
+    width: 100%;
+  }
+}
+
+// Placeholder row shown for empty folders (so folders are visible before any
+// repositories are assigned).
+.repository-folder-empty {
+  padding: 0 var(--spacing);
+  color: var(--text-secondary-color);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  height: 100%;
+  opacity: 0.9;
+}
+
+// Leading accessory for repository list rows (expand/collapse worktrees)
+.repository-list-item-leading-accessory,
+.repository-list-item-leading-accessory-spacer {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-right: var(--spacing-half);
+}
+
+.repository-list-item-leading-accessory {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius);
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: var(--box-hover-background-color);
+    color: var(--text-color);
+  }
+
+  .octicon {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+// On selected rows (especially focused selected = blue), ensure the hover state
+// of the expand/collapse button has proper contrast (avoid "white icon on white").
+.docked-repositories-list {
+  .list-item.selected {
+    .repository-list-item-leading-accessory:hover {
+      background: var(--list-item-selected-badge-background-color);
+      color: var(--list-item-selected-badge-color);
+    }
+  }
+}
+
+.list-focus-container.focus-within {
+  .docked-repositories-list {
+    .list-item.selected {
+      .repository-list-item-leading-accessory:hover {
+        background: var(--list-item-selected-active-badge-background-color);
+        color: var(--list-item-selected-active-badge-color);
+      }
+    }
+  }
+}
+
+// Main content layout with docked sidebar
+.app-main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+
+  &.with-docked-sidebar {
+    .app-repository-content {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+  }
+}
+
+.app-repository-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+// Resizable container for docked sidebar
+#docked-repository-sidebar {
+  flex-shrink: 0;
+  display: flex;
+  height: 100%;
+}

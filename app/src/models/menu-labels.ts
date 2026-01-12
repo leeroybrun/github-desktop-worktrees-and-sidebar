@@ -67,4 +67,9 @@ export type MenuLabelsEvent = {
    * says "Show changes filter" or "Hide changes filter".
    */
   readonly isChangesFilterVisible?: boolean
+
+  /**
+   * Whether or not the repository sidebar is docked (persistently visible).
+   */
+  readonly isRepositorySidebarDocked?: boolean
 }

@@ -2,7 +2,6 @@ import classNames from 'classnames'
 import { Disposable } from 'event-kit'
 import * as React from 'react'
 import { dragAndDropManager } from '../../lib/drag-and-drop-manager'
-import { assertNever } from '../../lib/fatal-error'
 import { Commit } from '../../models/commit'
 import { DragType, DropTarget, DropTargetType } from '../../models/drag-drop'
 import { GitHubRepository } from '../../models/github-repository'
@@ -121,11 +120,10 @@ export class CommitDragElement extends React.Component<
           </>
         )
         break
-      default:
-        assertNever(
-          currentDropTarget,
-          `Unknown drop target type: ${currentDropTarget}`
-        )
+      case DropTargetType.RepositoryFolder:
+      case DropTargetType.RepositoryInsertionPoint:
+        // These targets are not relevant for commit drags
+        return null
     }
 
     return (
@@ -145,8 +143,10 @@ export class CommitDragElement extends React.Component<
           case DropTargetType.ListInsertionPoint:
             this.setToolTipTimer(1500)
             break
-          default:
-            assertNever(dropTarget, `Unknown drop target type: ${dropTarget}`)
+          case DropTargetType.RepositoryFolder:
+          case DropTargetType.RepositoryInsertionPoint:
+            // These targets are not relevant for commit drags
+            break
         }
       }
     )

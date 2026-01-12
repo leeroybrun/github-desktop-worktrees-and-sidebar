@@ -122,3 +122,23 @@ export function enableAccessibleListToolTips(): boolean {
 }
 
 export const enableHooksEnvironment = enableBetaFeatures
+
+/** Should we enable first-class worktree support? */
+export function enableWorktreeSupport(): boolean {
+  return enableDevelopmentFeatures()
+}
+
+/** Should we enable the docked repository sidebar? */
+export function enableDockedRepositorySidebar(): boolean {
+  return enableDevelopmentFeatures()
+}
+
+/** Should we enable custom repository folders/grouping? */
+export function enableCustomRepositoryFolders(): boolean {
+  return enableDevelopmentFeatures()
+}
+
+/** Should we show nested worktrees in the repository list? */
+export function enableNestedWorktreesInSidebar(): boolean {
+  return enableWorktreeSupport()
+}

@@ -127,6 +127,45 @@
   }
 }
 
+// Repository dropdown foldout header (pin/unpin)
+.repository-foldout {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  .repository-foldout-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--spacing-half) var(--spacing);
+    border-bottom: var(--base-border);
+    flex-shrink: 0;
+
+    .pin-repository-sidebar-button {
+      padding: var(--spacing-third);
+      background: transparent;
+      border: none;
+      border-radius: var(--border-radius);
+      color: var(--text-secondary-color);
+
+      &:hover {
+        background: var(--box-hover-background-color);
+        color: var(--text-color);
+      }
+
+      .octicon {
+        width: 16px;
+        height: 16px;
+      }
+    }
+  }
+
+  .repository-list {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
 .list-focus-container {
   /** Ahead/behind badge colors when list item is selected but not focused */
   .list-item.selected {
@@ -171,6 +210,9 @@
     justify-content: flex-end;
     align-items: center;
     margin-right: var(--spacing-half);
+    // Ensure visual breathing room between the repository name and indicators
+    // when the sidebar is narrow and the name gets truncated.
+    padding-left: var(--spacing-half);
   }
 
   .change-indicator-wrapper {

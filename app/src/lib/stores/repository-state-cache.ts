@@ -19,6 +19,7 @@ import {
   IMultiCommitOperationUndoState,
   IMultiCommitOperationState,
   IPullRequestState,
+  IWorktreesState,
 } from '../app-state'
 import { merge } from '../merge'
 import { DefaultCommitMessage } from '../../models/commit-message'
@@ -290,6 +291,17 @@ export class RepositoryStateCache {
       return { pullRequestState: null }
     })
   }
+
+  public updateWorktreesState<K extends keyof IWorktreesState>(
+    repository: Repository,
+    fn: (worktreesState: IWorktreesState) => Pick<IWorktreesState, K>
+  ) {
+    this.update(repository, state => {
+      const worktreesState = state.worktreesState
+      const newState = merge(worktreesState, fn(worktreesState))
+      return { worktreesState: newState }
+    })
+  }
 }
 
 function getInitialRepositoryState(): IRepositoryState {
@@ -375,5 +387,10 @@ function getInitialRepositoryState(): IRepositoryState {
     multiCommitOperationState: null,
     hasCommitHooks: false,
     skipCommitHooks: false,
+    worktreesState: {
+      worktrees: [],
+      currentWorktree: null,
+      isLoadingWorktrees: false,
+    },
   }
 }

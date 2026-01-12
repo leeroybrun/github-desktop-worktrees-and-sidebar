@@ -8,7 +8,10 @@ import { MenuLabelsEvent } from '../../models/menu-labels'
 import * as ipcWebContents from '../ipc-webcontents'
 import { mkdir } from 'fs/promises'
 import { buildTestMenu } from './build-test-menu'
-import { enableFilteredChangesList } from '../../lib/feature-flag'
+import {
+  enableFilteredChangesList,
+  enableDockedRepositorySidebar,
+} from '../../lib/feature-flag'
 
 const createPullRequestLabel = __DARWIN__
   ? 'Create Pull Request'
@@ -47,6 +50,7 @@ export function buildDefaultMenu({
   isStashedChangesVisible = false,
   askForConfirmationWhenStashingAllChanges = true,
   isChangesFilterVisible = true,
+  isRepositorySidebarDocked = false,
 }: MenuLabelsEvent): Electron.Menu {
   contributionTargetDefaultBranch = truncateWithEllipsis(
     contributionTargetDefaultBranch,
@@ -199,6 +203,18 @@ export function buildDefaultMenu({
         accelerator: 'CmdOrCtrl+B',
         click: emit('show-branches'),
       },
+      ...(enableDockedRepositorySidebar()
+        ? [
+            {
+              label: __DARWIN__
+                ? `${isRepositorySidebarDocked ? 'Hide' : 'Show'} Repository Sidebar`
+                : `${isRepositorySidebarDocked ? 'Hide' : 'Show'} Repository &Sidebar`,
+              id: 'toggle-repository-sidebar',
+              accelerator: 'CmdOrCtrl+\\',
+              click: emit('toggle-repository-sidebar'),
+            },
+          ]
+        : []),
       separator,
       {
         label: __DARWIN__ ? 'Go to Summary' : 'Go to &Summary',

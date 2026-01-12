@@ -79,6 +79,28 @@ export class Repository {
   }
 }
 
+/**
+ * Create a new Repository instance with the same identity/metadata as the
+ * provided repository but with a different working directory path.
+ *
+ * This is used for worktree switching without persisting worktrees as separate
+ * repositories in the user's repository list.
+ */
+export function createRepositoryWithPath(
+  repository: Repository,
+  path: string
+): Repository {
+  return new Repository(
+    path,
+    repository.id,
+    repository.gitHubRepository,
+    repository.missing,
+    repository.alias,
+    repository.workflowPreferences,
+    repository.isTutorialRepository
+  )
+}
+
 /** A worktree linked to a main working tree (aka `Repository`) */
 export type LinkedWorkTree = WorkingTree & {
   /** The sha of the head commit in this work tree */

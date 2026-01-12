@@ -16,7 +16,6 @@ import {
 import { getDotComAPIEndpoint } from '../../lib/api'
 import { clipboard } from 'electron'
 import { RowIndexPath } from '../lib/list/list-row-index-path'
-import { assertNever } from '../../lib/fatal-error'
 import { CommitDragElement } from '../drag-elements/commit-drag-element'
 import { AriaLiveContainer } from '../accessibility/aria-live-container'
 import debounce from 'lodash/debounce'
@@ -217,6 +216,12 @@ export class CommitList extends React.Component<
       const { keyboardReorderData } = this.props
 
       if (keyboardReorderData === undefined) {
+        this.setState({ reorderingMessage: '' })
+        return
+      }
+
+      // Only handle commit drag data in commit list
+      if (keyboardReorderData.type !== DragType.Commit) {
         this.setState({ reorderingMessage: '' })
         return
       }
@@ -667,14 +672,15 @@ export class CommitList extends React.Component<
     data: KeyboardInsertionData
   ): JSX.Element | null => {
     const { emoji, gitHubRepository } = this.props
-    const { commits } = data
-
-    if (commits.length === 0) {
-      return null
-    }
 
     switch (data.type) {
-      case DragType.Commit:
+      case DragType.Commit: {
+        const { commits } = data
+
+        if (commits.length === 0) {
+          return null
+        }
+
         return (
           <CommitDragElement
             gitHubRepository={gitHubRepository}
@@ -685,8 +691,10 @@ export class CommitList extends React.Component<
             accounts={this.props.accounts}
           />
         )
-      default:
-        return assertNever(data.type, `Unknown drag element type: ${data}`)
+      }
+      case DragType.Repository:
+        // Repository drag is not relevant for commit list
+        return null
     }
   }
 

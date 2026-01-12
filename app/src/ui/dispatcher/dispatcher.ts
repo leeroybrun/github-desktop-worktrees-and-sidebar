@@ -23,6 +23,8 @@ import {
   MultiCommitOperationConflictState,
   IMultiCommitOperationState,
   CommitOptions,
+  RepositoryGroupingMode,
+  IRepositoryFolder,
 } from '../../lib/app-state'
 import { assertNever, fatalError } from '../../lib/fatal-error'
 import {
@@ -4060,5 +4062,108 @@ export class Dispatcher {
 
   public toggleChangesFilterVisibility() {
     this.appStore._toggleChangesFilterVisibility()
+  }
+
+  // ==========================================
+  // Multi-repo & Worktree UX Enhancement Methods
+  // ==========================================
+
+  /** Set whether the repository sidebar is docked */
+  public setRepositorySidebarDocked(docked: boolean): Promise<void> {
+    return this.appStore._setRepositorySidebarDocked(docked)
+  }
+
+  /** Toggle whether the repository sidebar is docked */
+  public toggleRepositorySidebarDocked(): Promise<void> {
+    return this.appStore._toggleRepositorySidebarDocked()
+  }
+
+  /** Set the width of the docked repository sidebar */
+  public setDockedRepositorySidebarWidth(width: number): Promise<void> {
+    return this.appStore._setDockedRepositorySidebarWidth(width)
+  }
+
+  /** Reset the width of the docked repository sidebar to default */
+  public resetDockedRepositorySidebarWidth(): Promise<void> {
+    return this.appStore._resetDockedRepositorySidebarWidth()
+  }
+
+  /** Set the width of the worktrees dropdown button */
+  public setWorktreesDropdownWidth(width: number): Promise<void> {
+    return this.appStore._setWorktreesDropdownWidth(width)
+  }
+
+  /** Reset the width of the worktrees dropdown button to default */
+  public resetWorktreesDropdownWidth(): Promise<void> {
+    return this.appStore._resetWorktreesDropdownWidth()
+  }
+
+  /** Set the repository grouping mode */
+  public setRepositoryGroupingMode(
+    mode: RepositoryGroupingMode
+  ): Promise<void> {
+    return this.appStore._setRepositoryGroupingMode(mode)
+  }
+
+  /** Toggle a repository's expanded state in the sidebar */
+  public toggleRepositoryExpanded(repositoryId: number): Promise<void> {
+    return this.appStore._toggleRepositoryExpanded(repositoryId)
+  }
+
+  /** Set a repository's expanded state in the sidebar */
+  public setRepositoryExpanded(
+    repositoryId: number,
+    expanded: boolean
+  ): Promise<void> {
+    return this.appStore._setRepositoryExpanded(repositoryId, expanded)
+  }
+
+  /** Create a new repository folder */
+  public createRepositoryFolder(name: string): Promise<IRepositoryFolder> {
+    return this.appStore._createRepositoryFolder(name)
+  }
+
+  /** Rename a repository folder */
+  public renameRepositoryFolder(
+    folderId: number,
+    newName: string
+  ): Promise<void> {
+    return this.appStore._renameRepositoryFolder(folderId, newName)
+  }
+
+  /** Delete a repository folder */
+  public deleteRepositoryFolder(folderId: number): Promise<void> {
+    return this.appStore._deleteRepositoryFolder(folderId)
+  }
+
+  /** Toggle a repository folder's collapsed state */
+  public toggleRepositoryFolderCollapsed(folderId: number): Promise<void> {
+    return this.appStore._toggleRepositoryFolderCollapsed(folderId)
+  }
+
+  /** Assign a repository to a folder */
+  public assignRepositoryToFolder(
+    repositoryId: number,
+    folderId: number | null
+  ): Promise<void> {
+    return this.appStore._assignRepositoryToFolder(repositoryId, folderId)
+  }
+
+  /** Reorder repositories within a folder */
+  public reorderRepositoriesInFolder(
+    folderId: number,
+    repositoryIds: ReadonlyArray<number>
+  ): Promise<void> {
+    return this.appStore._reorderRepositoriesInFolder(folderId, repositoryIds)
+  }
+
+  /** Reorder folders */
+  public reorderFolders(folderIds: ReadonlyArray<number>): Promise<void> {
+    return this.appStore._reorderFolders(folderIds)
+  }
+
+  /** Refresh worktrees for a repository */
+  public refreshWorktrees(repository: Repository): Promise<void> {
+    return this.appStore._refreshWorktrees(repository)
   }
 }

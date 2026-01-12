@@ -75,6 +75,15 @@ interface ISectionFilterListProps<T extends IFilterListItem, GroupIdentifier> {
     identifier: GroupIdentifier
   ) => JSX.Element | null
 
+  /**
+   * Whether empty groups should still be rendered (i.e. show the group header
+   * even when there are no items to show for that group).
+   *
+   * Note: This only applies when the filter is empty. When filtering, empty
+   * groups are still omitted.
+   */
+  readonly includeEmptyGroups?: boolean
+
   /** Called to render content before/above the filter and list. */
   readonly renderPreList?: () => JSX.Element | null
 
@@ -712,6 +721,17 @@ function createStateUpdate<T extends IFilterListItem, GroupIdentifier>(
         }))
 
     if (!items.length) {
+      // If requested, include empty groups (header only) when not filtering.
+      if (
+        props.includeEmptyGroups === true &&
+        filter.length === 0 &&
+        props.renderGroupHeader
+      ) {
+        groupIndices.push(idx)
+        groupRows.push({ kind: 'group', identifier: group.identifier })
+        rows.push(groupRows)
+        section++
+      }
       continue
     }
 

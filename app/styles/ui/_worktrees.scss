@@ -1,0 +1,273 @@
+@import '../mixins';
+
+// Worktrees dropdown button styles
+.toolbar-dropdown.worktrees-button {
+  .toolbar-button {
+    .icon {
+      .octicon {
+        &.spin {
+          animation: spin 1s linear infinite;
+        }
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Worktrees container/foldout styles - matches branches-container
+.worktrees-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  width: 365px;
+
+  .worktrees-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-half) var(--spacing);
+    border-bottom: var(--base-border);
+    flex-shrink: 0;
+
+    .worktrees-title {
+      font-weight: var(--font-weight-semibold);
+      font-size: var(--font-size-md);
+    }
+
+    .worktrees-actions {
+      display: flex;
+      gap: var(--spacing-half);
+
+      button {
+        padding: var(--spacing-third) var(--spacing-half);
+        font-size: var(--font-size-sm);
+      }
+    }
+  }
+
+  .worktrees-filter {
+    padding: var(--spacing-half) var(--spacing);
+    border-bottom: var(--base-border);
+    flex-shrink: 0;
+  }
+
+  .worktrees-list {
+    width: 365px;
+    min-height: 0;
+  }
+
+  .worktrees-empty {
+    padding: var(--spacing-double);
+    text-align: center;
+    color: var(--text-secondary-color);
+
+    .empty-icon {
+      margin-bottom: var(--spacing);
+
+      .octicon {
+        width: 48px;
+        height: 48px;
+        opacity: 0.5;
+      }
+    }
+
+    .empty-title {
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: var(--spacing-half);
+    }
+
+    .empty-description {
+      font-size: var(--font-size-sm);
+      margin-bottom: var(--spacing);
+    }
+  }
+
+  .worktrees-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-double);
+    color: var(--text-secondary-color);
+
+    .octicon {
+      margin-right: var(--spacing-half);
+      animation: spin 1s linear infinite;
+    }
+  }
+}
+
+// Worktree list item styles - matches branches-list-item exactly
+.worktree-list-item {
+  height: 100%;
+
+  // While dragging we don't want tooltips from the underlying item to show
+  &.drop-target * {
+    pointer-events: none;
+  }
+}
+
+.worktrees-list-item,
+.worktree-list-item {
+  padding: 0 var(--spacing);
+  display: flex;
+  flex-direction: row;
+  min-width: 0;
+  flex-grow: 1;
+  align-items: center;
+
+  .icon {
+    margin-right: var(--spacing-half);
+    width: 16px; // Force a consistent width
+    flex-shrink: 0;
+  }
+
+  .name {
+    flex-grow: 2;
+    @include ellipsis;
+    max-width: 65%;
+    margin-right: var(--spacing-half);
+
+    /* Used to highlight substring matches in filtered lists */
+    mark {
+      font-weight: bold;
+      /* Reset browser defaults */
+      background-color: inherit;
+      color: currentColor;
+    }
+  }
+
+  .description {
+    margin-right: var(--spacing-half);
+    color: var(--text-secondary-color);
+    font-size: var(--font-size-sm);
+    flex-grow: 1;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .status-indicator {
+    margin-right: var(--spacing-half);
+    color: var(--text-secondary-color);
+    font-size: var(--font-size-sm);
+    flex-grow: 1;
+    text-align: right;
+    white-space: nowrap;
+
+    .octicon {
+      width: 12px;
+      height: 12px;
+    }
+
+    &.prunable {
+      color: var(--diff-delete-text-color);
+    }
+  }
+}
+
+// Worktree group header - simple text like branches
+.worktree-group-header {
+  @include ellipsis;
+}
+
+// Add worktree dialog styles
+// Repository drag element styles
+#repository-drag-element {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 300px;
+
+  .repository-drag-content {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-half) var(--spacing);
+    background: var(--box-background-color);
+    border: 1px solid var(--box-border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--base-box-shadow);
+
+    .octicon {
+      margin-right: var(--spacing-half);
+      color: var(--text-secondary-color);
+    }
+
+    .repository-name {
+      font-weight: var(--font-weight-semibold);
+      @include ellipsis;
+    }
+  }
+
+  .tool-tip {
+    margin-top: var(--spacing-half);
+    padding: var(--spacing-third) var(--spacing-half);
+    background: var(--box-alt-background-color);
+    border: 1px solid var(--box-border-color);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary-color);
+
+    .move-to {
+      margin-right: var(--spacing-third);
+    }
+
+    .folder-name {
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-color);
+    }
+  }
+
+  &.has-tooltip {
+    .tool-tip {
+      display: block;
+    }
+  }
+}
+
+.add-worktree-dialog {
+  .worktree-path-input {
+    display: flex;
+    gap: var(--spacing-half);
+
+    .text-box-component {
+      flex: 1;
+    }
+  }
+
+  .branch-options {
+    margin-top: var(--spacing);
+
+    .branch-option {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: var(--spacing-half);
+
+      input[type='radio'] {
+        margin-top: 4px;
+        margin-right: var(--spacing-half);
+      }
+
+      label {
+        flex: 1;
+
+        .option-description {
+          font-size: var(--font-size-sm);
+          color: var(--text-secondary-color);
+        }
+      }
+    }
+  }
+
+  .branch-select {
+    margin-top: var(--spacing-half);
+    margin-left: calc(var(--spacing) + 16px);
+  }
+}

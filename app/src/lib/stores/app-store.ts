@@ -54,6 +54,7 @@ import {
   RepositoryWithGitHubRepository,
   getNonForkGitHubRepository,
   isForkedRepositoryContributingToParent,
+  createRepositoryWithPath,
 } from '../../models/repository'
 import {
   CommittedFileChange,
@@ -128,6 +129,8 @@ import {
   IConstrainedValue,
   ICompareState,
   CommitOptions,
+  RepositoryGroupingMode,
+  IRepositoryFolder,
 } from '../app-state'
 import {
   findEditorOrDefault,
@@ -188,6 +191,7 @@ import {
   getRemoteURL,
   getGlobalConfigPath,
   getFilesDiffText,
+  listWorktrees,
 } from '../git'
 import {
   installGlobalLFSFilters,
@@ -249,6 +253,7 @@ import { BranchPruner } from './helpers/branch-pruner'
 import {
   enableCommitMessageGeneration,
   enableCustomIntegration,
+  enableWorktreeSupport,
 } from '../feature-flag'
 import { Banner, BannerType } from '../../models/banner'
 import { ComputedAction } from '../../models/computed-action'
@@ -378,6 +383,22 @@ const branchDropdownWidthConfigKey: string = 'branch-dropdown-width'
 
 const defaultPushPullButtonWidth: number = 230
 const pushPullButtonWidthConfigKey: string = 'push-pull-button-width'
+
+// Multi-repo & Worktree UX enhancements
+const defaultDockedRepositorySidebarWidth: number = 220
+const dockedRepositorySidebarWidthConfigKey: string =
+  'docked-repository-sidebar-width'
+const repositorySidebarDockedConfigKey: string = 'repository-sidebar-docked'
+
+const defaultWorktreesDropdownWidth: number = 200
+const worktreesDropdownWidthConfigKey: string = 'worktrees-dropdown-width'
+
+const repositoryGroupingModeConfigKey: string = 'repository-grouping-mode'
+const repositoryFoldersConfigKey: string = 'repository-folders'
+const repositoryFolderAssignmentsConfigKey: string =
+  'repository-folder-assignments'
+const repositoryOrderInFoldersConfigKey: string = 'repository-order-in-folders'
+const expandedRepositoriesConfigKey: string = 'expanded-repositories'
 
 const askToMoveToApplicationsFolderDefault: boolean = true
 const confirmRepoRemovalDefault: boolean = true
@@ -622,6 +643,19 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private commitMessageGenerationButtonClicked: boolean = false
 
   private showChangesFilter: boolean = false
+
+  // Multi-repo & Worktree UX enhancements
+  private repositorySidebarDocked: boolean = true
+  private dockedRepositorySidebarWidth = constrain(
+    defaultDockedRepositorySidebarWidth
+  )
+  private worktreesDropdownWidth = constrain(defaultWorktreesDropdownWidth)
+  private repositoryGroupingMode: RepositoryGroupingMode = 'owner'
+  private repositoryFolders: ReadonlyArray<IRepositoryFolder> = []
+  private repositoryFolderAssignments: Map<number, number> = new Map()
+  private repositoryOrderInFolders: Map<number, ReadonlyArray<number>> =
+    new Map()
+  private expandedRepositories: Set<number> = new Set()
 
   public constructor(
     private readonly gitHubUserStore: GitHubUserStore,
@@ -1124,6 +1158,16 @@ export class AppStore extends TypedBaseStore<IAppState> {
       commitMessageGenerationButtonClicked:
         this.commitMessageGenerationButtonClicked,
       showChangesFilter: this.showChangesFilter,
+
+      // Multi-repo & Worktree UX enhancements
+      repositorySidebarDocked: this.repositorySidebarDocked,
+      dockedRepositorySidebarWidth: this.dockedRepositorySidebarWidth,
+      worktreesDropdownWidth: this.worktreesDropdownWidth,
+      repositoryGroupingMode: this.repositoryGroupingMode,
+      repositoryFolders: this.repositoryFolders,
+      repositoryFolderAssignments: this.repositoryFolderAssignments,
+      repositoryOrderInFolders: this.repositoryOrderInFolders,
+      expandedRepositories: this.expandedRepositories,
     }
   }
 
@@ -1987,6 +2031,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
   ): Promise<Repository | null> {
     this._refreshRepository(repository)
 
+    // Refresh worktrees for the selected repository
+    this._refreshWorktrees(repository)
+
     if (isRepositoryWithGitHubRepository(repository)) {
       // Load issues from the upstream or fork depending
       // on workflow preferences.
@@ -2216,6 +2263,27 @@ export class AppStore extends TypedBaseStore<IAppState> {
       getNumber(pushPullButtonWidthConfigKey, defaultPushPullButtonWidth)
     )
 
+    // Multi-repo & Worktree UX enhancements
+    // Default to true (show sidebar) if not explicitly set
+    this.repositorySidebarDocked =
+      getBoolean(repositorySidebarDockedConfigKey) ?? true
+    this.dockedRepositorySidebarWidth = constrain(
+      getNumber(
+        dockedRepositorySidebarWidthConfigKey,
+        defaultDockedRepositorySidebarWidth
+      )
+    )
+    this.worktreesDropdownWidth = constrain(
+      getNumber(worktreesDropdownWidthConfigKey, defaultWorktreesDropdownWidth)
+    )
+    this.repositoryGroupingMode =
+      (localStorage.getItem(repositoryGroupingModeConfigKey) as RepositoryGroupingMode) ||
+      'owner'
+    this.repositoryFolders = this.loadRepositoryFolders()
+    this.repositoryFolderAssignments = this.loadRepositoryFolderAssignments()
+    this.repositoryOrderInFolders = this.loadRepositoryOrderInFolders()
+    this.expandedRepositories = this.loadExpandedRepositories()
+
     this.updateResizableConstraints()
     // TODO: Initiliaze here for now... maybe move to dialog mounting
     this.updatePullRequestResizableConstraints()
@@ -2396,12 +2464,16 @@ export class AppStore extends TypedBaseStore<IAppState> {
    * dimensions change.
    */
   private updateResizableConstraints() {
+    const hasWorktreesDropdown = enableWorktreeSupport()
+
     // The combined width of the branch dropdown and the push/pull/fetch button
     // Since the repository list toolbar button width is tied to the width of
     // the sidebar we can't let it push the branch, and push/pull/fetch button
     // off screen.
     const toolbarButtonsMinWidth =
-      defaultPushPullButtonWidth + defaultBranchDropdownWidth
+      defaultPushPullButtonWidth +
+      defaultBranchDropdownWidth +
+      (hasWorktreesDropdown ? defaultWorktreesDropdownWidth : 0)
 
     // Start with all the available width
     let available = window.innerWidth
@@ -2425,7 +2497,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.sidebarWidth = constrain(this.sidebarWidth, 220, maxSidebarWidth)
 
     // Now calculate the width we have left to distribute for the other panes
+    // and for the toolbar button constraints.
     available -= clamp(this.sidebarWidth)
+    const availableForToolbarButtons = available
 
     // This is a pretty silly width for a diff but it will fit ~9 chars per line
     // in unified mode after subtracting the width of the unified gutter and ~4
@@ -2438,16 +2512,42 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.commitSummaryWidth = constrain(this.commitSummaryWidth, 100, filesMax)
     this.stashedFilesWidth = constrain(this.stashedFilesWidth, 100, filesMax)
 
+    // Toolbar button width constraints (worktrees -> branch -> push/pull)
+    // Note: these widths impact the top toolbar only and should not influence
+    // the main content resizable panes.
+    let toolbarAvailable = availableForToolbarButtons
+
+    if (hasWorktreesDropdown) {
+      const worktreesDropdownMax =
+        toolbarAvailable -
+        defaultBranchDropdownWidth -
+        defaultPushPullButtonWidth
+
+      const minimumWorktreesDropdownWidth =
+        defaultWorktreesDropdownWidth > toolbarAvailable / 3
+          ? toolbarAvailable / 3
+          : defaultWorktreesDropdownWidth
+
+      this.worktreesDropdownWidth = constrain(
+        this.worktreesDropdownWidth,
+        minimumWorktreesDropdownWidth,
+        worktreesDropdownMax
+      )
+
+      toolbarAvailable -= this.worktreesDropdownWidth.value
+    }
+
     // Update the maximum width available for the branch dropdown resizable.
     // The branch dropdown can only be as wide as the available space after
-    // taking the sidebar and pull/push/fetch button widths. If the room
+    // taking the sidebar, optional worktrees dropdown, and pull/push/fetch
+    // button widths. If the room
     // available is less than the default width, we will split the difference
     // between the branch dropdown and the push/pull/fetch button so they stay
     // visible on the most zoomed view.
-    const branchDropdownMax = available - defaultPushPullButtonWidth
+    const branchDropdownMax = toolbarAvailable - defaultPushPullButtonWidth
     const minimumBranchDropdownWidth =
-      defaultBranchDropdownWidth > available / 2
-        ? available / 2 - 10 // 10 is to give a little bit of space to see the fetch dropdown button
+      defaultBranchDropdownWidth > toolbarAvailable / 2
+        ? toolbarAvailable / 2 - 10 // 10 is to give a little bit of space to see the fetch dropdown button
         : defaultBranchDropdownWidth
     this.branchDropdownWidth = constrain(
       this.branchDropdownWidth,
@@ -2455,10 +2555,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
       branchDropdownMax
     )
 
-    const pushPullButtonMaxWidth = available - this.branchDropdownWidth.value
+    const pushPullButtonMaxWidth =
+      toolbarAvailable - this.branchDropdownWidth.value
     const minimumPushPullToolBarWidth =
-      defaultPushPullButtonWidth > available / 2
-        ? available / 2 + 30 // 30 to clip the fetch dropdown button in favor of seeing more of the words on the toolbar buttons
+      defaultPushPullButtonWidth > toolbarAvailable / 2
+        ? toolbarAvailable / 2 + 30 // 30 to clip the fetch dropdown button in favor of seeing more of the words on the toolbar buttons
         : defaultPushPullButtonWidth
     this.pushPullButtonWidth = constrain(
       this.pushPullButtonWidth,
@@ -2611,6 +2712,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       hasCurrentPullRequest: currentPullRequest !== null,
       askForConfirmationWhenStashingAllChanges,
       isChangesFilterVisible: this.showChangesFilter,
+      isRepositorySidebarDocked: this.repositorySidebarDocked,
     })
   }
 
@@ -2626,7 +2728,21 @@ export class AppStore extends TypedBaseStore<IAppState> {
             r.id === selectedRepository.id
         ) || null
 
-      newSelectedRepository = r
+      // If we previously selected a worktree path (same repo id but different
+      // working directory), preserve that selection across repository store
+      // updates by re-applying the path to the refreshed repository model.
+      if (
+        r instanceof Repository &&
+        selectedRepository instanceof Repository &&
+        selectedRepository.path !== r.path
+      ) {
+        newSelectedRepository = createRepositoryWithPath(
+          r,
+          selectedRepository.path
+        )
+      } else {
+        newSelectedRepository = r
+      }
     }
 
     if (newSelectedRepository === null && this.repositories.length > 0) {
@@ -8552,6 +8668,350 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.showChangesFilter = !this.showChangesFilter
     setBoolean(showChangesFilterKey, this.showChangesFilter)
     this.updateMenuLabelsForSelectedRepository()
+    this.emitUpdate()
+  }
+
+  // ==========================================
+  // Multi-repo & Worktree UX Enhancement Methods
+  // ==========================================
+
+  /**
+   * Toggle whether the repository sidebar is docked (persistently visible)
+   */
+  public _setRepositorySidebarDocked(docked: boolean): Promise<void> {
+    this.repositorySidebarDocked = docked
+    setBoolean(repositorySidebarDockedConfigKey, docked)
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _toggleRepositorySidebarDocked(): Promise<void> {
+    return this._setRepositorySidebarDocked(!this.repositorySidebarDocked)
+  }
+
+  public _setDockedRepositorySidebarWidth(width: number): Promise<void> {
+    this.dockedRepositorySidebarWidth = {
+      ...this.dockedRepositorySidebarWidth,
+      value: width,
+    }
+    setNumber(dockedRepositorySidebarWidthConfigKey, width)
+    this.updateResizableConstraints()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _resetDockedRepositorySidebarWidth(): Promise<void> {
+    this.dockedRepositorySidebarWidth = {
+      ...this.dockedRepositorySidebarWidth,
+      value: defaultDockedRepositorySidebarWidth,
+    }
+    localStorage.removeItem(dockedRepositorySidebarWidthConfigKey)
+    this.updateResizableConstraints()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _setWorktreesDropdownWidth(width: number): Promise<void> {
+    this.worktreesDropdownWidth = {
+      ...this.worktreesDropdownWidth,
+      value: width,
+    }
+    setNumber(worktreesDropdownWidthConfigKey, width)
+    this.updateResizableConstraints()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _resetWorktreesDropdownWidth(): Promise<void> {
+    this.worktreesDropdownWidth = {
+      ...this.worktreesDropdownWidth,
+      value: defaultWorktreesDropdownWidth,
+    }
+    localStorage.removeItem(worktreesDropdownWidthConfigKey)
+    this.updateResizableConstraints()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  /**
+   * Set the repository grouping mode
+   */
+  public _setRepositoryGroupingMode(mode: RepositoryGroupingMode): Promise<void> {
+    this.repositoryGroupingMode = mode
+    localStorage.setItem(repositoryGroupingModeConfigKey, mode)
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  /**
+   * Toggle a repository's expanded state in the sidebar
+   */
+  public _toggleRepositoryExpanded(repositoryId: number): Promise<void> {
+    const newExpanded = new Set(this.expandedRepositories)
+    if (newExpanded.has(repositoryId)) {
+      newExpanded.delete(repositoryId)
+    } else {
+      newExpanded.add(repositoryId)
+    }
+    this.expandedRepositories = newExpanded
+    this.saveExpandedRepositories()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _setRepositoryExpanded(
+    repositoryId: number,
+    expanded: boolean
+  ): Promise<void> {
+    const newExpanded = new Set(this.expandedRepositories)
+    if (expanded) {
+      newExpanded.add(repositoryId)
+    } else {
+      newExpanded.delete(repositoryId)
+    }
+    this.expandedRepositories = newExpanded
+    this.saveExpandedRepositories()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  // Repository folder management
+
+  public _createRepositoryFolder(name: string): Promise<IRepositoryFolder> {
+    const maxId = this.repositoryFolders.reduce(
+      (max, folder) => Math.max(max, folder.id),
+      0
+    )
+    const maxOrder = this.repositoryFolders.reduce(
+      (max, folder) => Math.max(max, folder.order),
+      0
+    )
+    const newFolder: IRepositoryFolder = {
+      id: maxId + 1,
+      name,
+      order: maxOrder + 1,
+      isCollapsed: false,
+    }
+    this.repositoryFolders = [...this.repositoryFolders, newFolder]
+    this.saveRepositoryFolders()
+    this.emitUpdate()
+    return Promise.resolve(newFolder)
+  }
+
+  public _renameRepositoryFolder(
+    folderId: number,
+    newName: string
+  ): Promise<void> {
+    this.repositoryFolders = this.repositoryFolders.map(folder =>
+      folder.id === folderId ? { ...folder, name: newName } : folder
+    )
+    this.saveRepositoryFolders()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _deleteRepositoryFolder(folderId: number): Promise<void> {
+    this.repositoryFolders = this.repositoryFolders.filter(
+      folder => folder.id !== folderId
+    )
+    // Remove folder assignments for this folder
+    const newAssignments = new Map(this.repositoryFolderAssignments)
+    for (const [repoId, assignedFolderId] of newAssignments) {
+      if (assignedFolderId === folderId) {
+        newAssignments.delete(repoId)
+      }
+    }
+    this.repositoryFolderAssignments = newAssignments
+    this.saveRepositoryFolders()
+    this.saveRepositoryFolderAssignments()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _toggleRepositoryFolderCollapsed(folderId: number): Promise<void> {
+    this.repositoryFolders = this.repositoryFolders.map(folder =>
+      folder.id === folderId
+        ? { ...folder, isCollapsed: !folder.isCollapsed }
+        : folder
+    )
+    this.saveRepositoryFolders()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _assignRepositoryToFolder(
+    repositoryId: number,
+    folderId: number | null
+  ): Promise<void> {
+    const newAssignments = new Map(this.repositoryFolderAssignments)
+    if (folderId === null) {
+      newAssignments.delete(repositoryId)
+    } else {
+      newAssignments.set(repositoryId, folderId)
+    }
+    this.repositoryFolderAssignments = newAssignments
+    this.saveRepositoryFolderAssignments()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _reorderRepositoriesInFolder(
+    folderId: number,
+    repositoryIds: ReadonlyArray<number>
+  ): Promise<void> {
+    const newOrder = new Map(this.repositoryOrderInFolders)
+    newOrder.set(folderId, repositoryIds)
+    this.repositoryOrderInFolders = newOrder
+    this.saveRepositoryOrderInFolders()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  public _reorderFolders(
+    folderIds: ReadonlyArray<number>
+  ): Promise<void> {
+    this.repositoryFolders = folderIds
+      .map((id, index) => {
+        const folder = this.repositoryFolders.find(f => f.id === id)
+        return folder ? { ...folder, order: index } : null
+      })
+      .filter((f): f is IRepositoryFolder => f !== null)
+    this.saveRepositoryFolders()
+    this.emitUpdate()
+    return Promise.resolve()
+  }
+
+  // Private helper methods for loading/saving state
+
+  private loadRepositoryFolders(): ReadonlyArray<IRepositoryFolder> {
+    try {
+      const stored = localStorage.getItem(repositoryFoldersConfigKey)
+      if (stored) {
+        return JSON.parse(stored)
+      }
+    } catch (e) {
+      log.error('Failed to load repository folders', e)
+    }
+    return []
+  }
+
+  private saveRepositoryFolders(): void {
+    try {
+      localStorage.setItem(
+        repositoryFoldersConfigKey,
+        JSON.stringify(this.repositoryFolders)
+      )
+    } catch (e) {
+      log.error('Failed to save repository folders', e)
+    }
+  }
+
+  private loadRepositoryFolderAssignments(): Map<number, number> {
+    try {
+      const stored = localStorage.getItem(repositoryFolderAssignmentsConfigKey)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        return new Map(Object.entries(parsed).map(([k, v]) => [parseInt(k), v as number]))
+      }
+    } catch (e) {
+      log.error('Failed to load repository folder assignments', e)
+    }
+    return new Map()
+  }
+
+  private saveRepositoryFolderAssignments(): void {
+    try {
+      const obj = Object.fromEntries(this.repositoryFolderAssignments)
+      localStorage.setItem(repositoryFolderAssignmentsConfigKey, JSON.stringify(obj))
+    } catch (e) {
+      log.error('Failed to save repository folder assignments', e)
+    }
+  }
+
+  private loadRepositoryOrderInFolders(): Map<number, ReadonlyArray<number>> {
+    try {
+      const stored = localStorage.getItem(repositoryOrderInFoldersConfigKey)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        return new Map(
+          Object.entries(parsed).map(([k, v]) => [parseInt(k), v as ReadonlyArray<number>])
+        )
+      }
+    } catch (e) {
+      log.error('Failed to load repository order in folders', e)
+    }
+    return new Map()
+  }
+
+  private saveRepositoryOrderInFolders(): void {
+    try {
+      const obj = Object.fromEntries(this.repositoryOrderInFolders)
+      localStorage.setItem(repositoryOrderInFoldersConfigKey, JSON.stringify(obj))
+    } catch (e) {
+      log.error('Failed to save repository order in folders', e)
+    }
+  }
+
+  private loadExpandedRepositories(): Set<number> {
+    try {
+      const stored = localStorage.getItem(expandedRepositoriesConfigKey)
+      if (stored) {
+        return new Set(JSON.parse(stored))
+      }
+    } catch (e) {
+      log.error('Failed to load expanded repositories', e)
+    }
+    return new Set()
+  }
+
+  private saveExpandedRepositories(): void {
+    try {
+      localStorage.setItem(
+        expandedRepositoriesConfigKey,
+        JSON.stringify([...this.expandedRepositories])
+      )
+    } catch (e) {
+      log.error('Failed to save expanded repositories', e)
+    }
+  }
+
+  // Worktree management methods
+
+  /**
+   * Refresh the worktrees for a repository
+   */
+  public async _refreshWorktrees(repository: Repository): Promise<void> {
+    this.repositoryStateCache.updateWorktreesState(repository, () => ({
+      isLoadingWorktrees: true,
+    }))
+    this.emitUpdate()
+
+    try {
+      const worktrees = await listWorktrees(repository)
+      const worktreeStates = worktrees.map(wt => ({
+        path: wt.path,
+        head: wt.head,
+        branch: wt.branch,
+        isMain: wt.isMain,
+        isLocked: wt.isLocked,
+        isPrunable: wt.isPrunable,
+      }))
+
+      const currentWorktree =
+        worktreeStates.find(wt => wt.path === repository.path) || null
+
+      this.repositoryStateCache.updateWorktreesState(repository, () => ({
+        worktrees: worktreeStates,
+        currentWorktree,
+        isLoadingWorktrees: false,
+      }))
+    } catch (e) {
+      log.error('Failed to load worktrees', e)
+      this.repositoryStateCache.updateWorktreesState(repository, () => ({
+        isLoadingWorktrees: false,
+      }))
+    }
+
     this.emitUpdate()
   }
 }

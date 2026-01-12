@@ -60,7 +60,7 @@ import {
   BranchDropdown,
   RevertProgress,
 } from './toolbar'
-import { iconForRepository, OcticonSymbol } from './octicons'
+import { iconForRepository, Octicon, OcticonSymbol } from './octicons'
 import * as octicons from './octicons/octicons.generated'
 import {
   showCertificateTrustDialog,
@@ -133,6 +133,7 @@ import { AheadBehindStore } from '../lib/stores/ahead-behind-store'
 import { getAccountForRepository } from '../lib/get-account-for-repository'
 import { CommitOneLine } from '../models/commit'
 import { CommitDragElement } from './drag-elements/commit-drag-element'
+import { RepositoryDragElement } from './drag-elements/repository-drag-element'
 import classNames from 'classnames'
 import { MoveToApplicationsFolder } from './move-to-applications-folder'
 import { ChangeRepositoryAlias } from './change-repository-alias/change-repository-alias-dialog'
@@ -184,9 +185,14 @@ import { IconPreviewDialog } from './octicons/icon-preview-dialog'
 import { isCertificateErrorSuppressedFor } from '../lib/suppress-certificate-error'
 import { webUtils } from 'electron'
 import { showTestUI } from './lib/test-ui-components/test-ui-components'
+import { Button } from './lib/button'
 import { ConfirmCommitFilteredChanges } from './changes/confirm-commit-filtered-changes-dialog'
 import { AboutTestDialog } from './about/about-test-dialog'
-import { enableMultipleEnterpriseAccounts } from '../lib/feature-flag'
+import {
+  enableMultipleEnterpriseAccounts,
+  enableWorktreeSupport,
+  enableDockedRepositorySidebar,
+} from '../lib/feature-flag'
 import {
   ISecretScanResult,
   PushProtectionErrorDialog,
@@ -201,6 +207,8 @@ import {
 } from './secret-scanning/bypass-push-protection-dialog'
 import { HookFailed } from './hook-failed/hook-failed'
 import { CommitProgress } from './commit-progress/commit-progress'
+import { WorktreesDropdown } from './toolbar/worktrees-dropdown'
+import { DockedRepositorySidebar } from './docked-sidebar'
 
 const MinuteInMilliseconds = 1000 * 60
 const HourInMilliseconds = MinuteInMilliseconds * 60
@@ -535,6 +543,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.resizeActiveResizable('decrease-active-resizable-width')
       case 'toggle-changes-filter':
         return this.toggleChangesFilterVisibility()
+      case 'toggle-repository-sidebar':
+        return this.toggleRepositorySidebar()
       default:
         if (isTestMenuEvent(name)) {
           return showTestUI(
@@ -553,6 +563,13 @@ export class App extends React.Component<IAppProps, IAppState> {
    */
   private toggleChangesFilterVisibility() {
     this.props.dispatcher.toggleChangesFilterVisibility()
+  }
+
+  /**
+   * Toggle the docked repository sidebar visibility
+   */
+  private toggleRepositorySidebar() {
+    this.props.dispatcher.toggleRepositorySidebarDocked()
   }
 
   /**
@@ -2826,21 +2843,28 @@ export class App extends React.Component<IAppProps, IAppState> {
       return null
     }
 
-    const { gitHubRepository, commit, selectedCommits } = currentDragElement
     switch (currentDragElement.type) {
       case DragType.Commit:
         return (
           <CommitDragElement
-            gitHubRepository={gitHubRepository}
-            commit={commit}
-            selectedCommits={selectedCommits}
+            gitHubRepository={currentDragElement.gitHubRepository}
+            commit={currentDragElement.commit}
+            selectedCommits={currentDragElement.selectedCommits}
             emoji={emoji}
             accounts={this.state.accounts}
           />
         )
+      case DragType.Repository:
+        return (
+          <RepositoryDragElement
+            repositoryId={currentDragElement.repositoryId}
+            repositoryName={currentDragElement.repositoryName}
+            sourceFolderId={currentDragElement.sourceFolderId}
+          />
+        )
       default:
         return assertNever(
-          currentDragElement.type,
+          currentDragElement,
           `Unknown drag element type: ${currentDragElement}`
         )
     }
@@ -2882,7 +2906,67 @@ export class App extends React.Component<IAppProps, IAppState> {
     })
   }
 
+  private getWorktreesForRepository = (repository: Repository) => {
+    const repositoryState = this.props.repositoryStateManager.get(repository)
+    return repositoryState?.worktreesState ?? null
+  }
+
+  private onHideDockedSidebar = () => {
+    this.props.dispatcher.setRepositorySidebarDocked(false)
+  }
+
+  private renderDockedRepositorySidebar(): JSX.Element | null {
+    if (!enableDockedRepositorySidebar()) {
+      return null
+    }
+
+    if (!this.state.repositorySidebarDocked) {
+      return null
+    }
+
+    const selectedRepository = this.state.selectedState
+      ? this.state.selectedState.repository
+      : null
+
+    const { useCustomShell, selectedShell } = this.state
+    const filterText = this.state.repositoryFilterText
+
+    return (
+      <DockedRepositorySidebar
+        dispatcher={this.props.dispatcher}
+        repositories={this.state.repositories}
+        selectedRepository={selectedRepository}
+        recentRepositories={this.state.recentRepositories}
+        localRepositoryStateLookup={this.state.localRepositoryStateLookup}
+        width={this.state.dockedRepositorySidebarWidth}
+        groupingMode={this.state.repositoryGroupingMode}
+        repositoryFolders={this.state.repositoryFolders}
+        repositoryFolderAssignments={this.state.repositoryFolderAssignments}
+        repositoryOrderInFolders={this.state.repositoryOrderInFolders}
+        expandedRepositories={this.state.expandedRepositories}
+        getWorktreesForRepository={this.getWorktreesForRepository}
+        filterText={filterText}
+        onSelectionChanged={this.onSelectionChanged}
+        onFilterTextChanged={this.onRepositoryFilterTextChanged}
+        onRemoveRepository={this.removeRepository}
+        onShowRepository={this.showRepository}
+        onViewOnGitHub={this.viewOnGitHub}
+        onOpenInShell={this.openInShell}
+        onOpenInExternalEditor={this.openInExternalEditor}
+        externalEditorLabel={this.externalEditorLabel}
+        shellLabel={useCustomShell ? undefined : selectedShell}
+        askForConfirmationOnRemoveRepository={
+          this.state.askForConfirmationOnRepositoryRemoval
+        }
+        onHideSidebar={this.onHideDockedSidebar}
+      />
+    )
+  }
+
   private renderApp() {
+    const dockedSidebar = this.renderDockedRepositorySidebar()
+    const showDockedSidebar = dockedSidebar !== null
+
     return (
       <div
         id="desktop-app-contents"
@@ -2890,7 +2974,16 @@ export class App extends React.Component<IAppProps, IAppState> {
       >
         {this.renderToolbar()}
         {this.renderBanner()}
-        {this.renderRepository()}
+        <div
+          className={classNames('app-main-content', {
+            'with-docked-sidebar': showDockedSidebar,
+          })}
+        >
+          {dockedSidebar}
+          <div className="app-repository-content">
+            {this.renderRepository()}
+          </div>
+        </div>
         {this.renderPopups()}
         {this.renderDragElement()}
       </div>
@@ -2904,28 +2997,60 @@ export class App extends React.Component<IAppProps, IAppState> {
 
     const { useCustomShell, selectedShell } = this.state
     const filterText = this.state.repositoryFilterText
+
+    const canDockSidebar = enableDockedRepositorySidebar()
+    const isDocked = this.state.repositorySidebarDocked
+
     return (
-      <RepositoriesList
-        filterText={filterText}
-        onFilterTextChanged={this.onRepositoryFilterTextChanged}
-        selectedRepository={selectedRepository}
-        onSelectionChanged={this.onSelectionChanged}
-        repositories={this.state.repositories}
-        recentRepositories={this.state.recentRepositories}
-        localRepositoryStateLookup={this.state.localRepositoryStateLookup}
-        askForConfirmationOnRemoveRepository={
-          this.state.askForConfirmationOnRepositoryRemoval
-        }
-        onRemoveRepository={this.removeRepository}
-        onViewOnGitHub={this.viewOnGitHub}
-        onOpenInShell={this.openInShell}
-        onShowRepository={this.showRepository}
-        onOpenInExternalEditor={this.openInExternalEditor}
-        externalEditorLabel={this.externalEditorLabel}
-        shellLabel={useCustomShell ? undefined : selectedShell}
-        dispatcher={this.props.dispatcher}
-      />
+      <div className="repository-foldout">
+        {canDockSidebar && (
+          <div className="repository-foldout-header">
+            <Button
+              className="pin-repository-sidebar-button"
+              onClick={this.onToggleRepositorySidebarDockedFromDropdown}
+              tooltip={
+                isDocked
+                  ? 'Unpin repository sidebar'
+                  : 'Pin repository sidebar'
+              }
+            >
+              <Octicon symbol={isDocked ? octicons.pinSlash : octicons.pin} />
+            </Button>
+          </div>
+        )}
+        <RepositoriesList
+          filterText={filterText}
+          onFilterTextChanged={this.onRepositoryFilterTextChanged}
+          selectedRepository={selectedRepository}
+          onSelectionChanged={this.onSelectionChanged}
+          repositories={this.state.repositories}
+          recentRepositories={this.state.recentRepositories}
+          localRepositoryStateLookup={this.state.localRepositoryStateLookup}
+          askForConfirmationOnRemoveRepository={
+            this.state.askForConfirmationOnRepositoryRemoval
+          }
+          onRemoveRepository={this.removeRepository}
+          onViewOnGitHub={this.viewOnGitHub}
+          onOpenInShell={this.openInShell}
+          onShowRepository={this.showRepository}
+          onOpenInExternalEditor={this.openInExternalEditor}
+          externalEditorLabel={this.externalEditorLabel}
+          shellLabel={useCustomShell ? undefined : selectedShell}
+          dispatcher={this.props.dispatcher}
+        />
+      </div>
     )
+  }
+
+  private onToggleRepositorySidebarDockedFromDropdown = () => {
+    const willDock = !this.state.repositorySidebarDocked
+    this.props.dispatcher.setRepositorySidebarDocked(willDock)
+
+    // If we're pinning, close the overlay foldout since the sidebar will become
+    // persistently visible.
+    if (willDock) {
+      this.props.dispatcher.closeFoldout(FoldoutType.Repository)
+    }
   }
 
   private viewOnGitHub = (
@@ -3255,6 +3380,48 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
   }
 
+  private onWorktreesDropdownStateChanged = (newState: DropdownState) => {
+    if (newState === 'open') {
+      this.props.dispatcher.showFoldout({ type: FoldoutType.Worktrees })
+    } else {
+      this.props.dispatcher.closeFoldout(FoldoutType.Worktrees)
+    }
+  }
+
+  private renderWorktreesToolbarButton(): JSX.Element | null {
+    if (!enableWorktreeSupport()) {
+      return null
+    }
+
+    const selection = this.state.selectedState
+
+    if (selection == null || selection.type !== SelectionType.Repository) {
+      return null
+    }
+
+    const currentFoldout = this.state.currentFoldout
+
+    const isOpen =
+      currentFoldout !== null && currentFoldout.type === FoldoutType.Worktrees
+
+    const repository = selection.repository
+    const { worktreesState } = selection.state
+
+    const enableFocusTrap = this.state.currentPopup === null
+
+    return (
+      <WorktreesDropdown
+        dispatcher={this.props.dispatcher}
+        repository={repository}
+        worktreesState={worktreesState}
+        worktreesDropdownWidth={this.state.worktreesDropdownWidth}
+        isOpen={isOpen}
+        onDropDownStateChanged={this.onWorktreesDropdownStateChanged}
+        enableFocusTrap={enableFocusTrap}
+      />
+    )
+  }
+
   private renderBranchToolbarButton(): JSX.Element | null {
     const selection = this.state.selectedState
 
@@ -3374,6 +3541,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         <div className="sidebar-section" style={{ width }}>
           {this.renderRepositoryToolbarButton()}
         </div>
+        {this.renderWorktreesToolbarButton()}
         {this.renderBranchToolbarButton()}
         {this.renderPushPullToolbarButton()}
       </Toolbar>
