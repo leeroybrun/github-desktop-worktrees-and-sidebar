@@ -1,6 +1,22 @@
 import { Account } from '../models/account'
 
 const Disable = false
+const WorktreesForkFeaturesEnvVar = 'GITHUB_DESKTOP_WORKTREES_FORK_FEATURES'
+
+/**
+ * Enables fork-specific features in production builds.
+ *
+ * This is intentionally separate from `GITHUB_DESKTOP_PREVIEW_FEATURES` so that
+ * enabling the worktrees fork UX doesn't implicitly enable unrelated upstream
+ * preview/beta features.
+ */
+function enableWorktreesForkFeatures(): boolean {
+  if (Disable) {
+    return false
+  }
+
+  return process.env[WorktreesForkFeaturesEnvVar] === '1'
+}
 
 /**
  * Enables the application to opt-in for preview features based on runtime
@@ -125,17 +141,17 @@ export const enableHooksEnvironment = enableBetaFeatures
 
 /** Should we enable first-class worktree support? */
 export function enableWorktreeSupport(): boolean {
-  return enableDevelopmentFeatures()
+  return enableDevelopmentFeatures() || enableWorktreesForkFeatures()
 }
 
 /** Should we enable the docked repository sidebar? */
 export function enableDockedRepositorySidebar(): boolean {
-  return enableDevelopmentFeatures()
+  return enableDevelopmentFeatures() || enableWorktreesForkFeatures()
 }
 
 /** Should we enable custom repository folders/grouping? */
 export function enableCustomRepositoryFolders(): boolean {
-  return enableDevelopmentFeatures()
+  return enableDevelopmentFeatures() || enableWorktreesForkFeatures()
 }
 
 /** Should we show nested worktrees in the repository list? */
