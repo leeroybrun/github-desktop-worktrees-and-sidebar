@@ -23,6 +23,17 @@ on:
         required: false
         default: true
         type: boolean
+      upload-to-release:
+        description: 'Create/update a GitHub Release and upload built artifacts'
+        required: false
+        default: false
+        type: boolean
+      release-tag:
+        description:
+          'Release tag (leave blank to use worktrees-fork-v<app version>)'
+        required: false
+        default: ''
+        type: string
       sign:
         description: 'Attempt Windows code signing (requires secrets)'
         required: false
@@ -41,6 +52,14 @@ on:
         default: false
         required: false
         type: boolean
+      upload-to-release:
+        default: false
+        required: false
+        type: boolean
+      release-tag:
+        default: ''
+        required: false
+        type: string
       environment:
         type: string
         required: true
@@ -177,6 +196,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: >-
           ${{ inputs.upload-artifacts ||
+              inputs.upload-to-release ||
               (github.event_name == 'push' && github.ref ==
           'refs/heads/sidebar-and-worktrees') }}
         with:
@@ -188,3 +208,57 @@ jobs:
             dist/*Setup-*.msi
             dist/bundle-size.json
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && inputs.upload-to-release)
+      ||
+          (github.event_name == 'push' && github.ref ==
+      'refs/heads/sidebar-and-worktrees') }}
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+    env:
+      RELEASE_CHANNEL: ${{ inputs.environment || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      - name: Compute release tag
+        id: release_meta
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./app/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if [ -n "${{ inputs.release-tag }}" ]; then
+            TAG="${{ inputs.release-tag }}"
+          else
+            TAG="worktrees-fork-v$VERSION"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Create or update GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.release_meta.outputs.tag }}
+          name:
+            GitHub Desktop (Worktrees Fork) ${{
+            steps.release_meta.outputs.version }}
+          allowUpdates: true
+          replacesArtifacts: true
+          prerelease: true
+          generateReleaseNotes: true
+          artifacts: >-
+            release-artifacts/**/*.zip, release-artifacts/**/*.nupkg,
+            release-artifacts/**/*Setup-*.exe,
+            release-artifacts/**/*Setup-*.msi,
+            release-artifacts/**/bundle-size.json
