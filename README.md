@@ -1,5 +1,31 @@
 # [GitHub Desktop](https://desktop.github.com)
 
+[!IMPORTANT]
+## Fork: **Worktrees and Sidebar**
+
+This repository is a **fork of GitHub Desktop** focused on improving multi-repository workflows and adding first-class **Git worktree** support.
+
+- **Persistent (docked) repository sidebar**: keep the repo list open, resizable, with a pin/toggle.
+- **Worktrees UX**: toolbar Worktrees dropdown + optional nested worktrees under each repo in the sidebar.
+- **Custom repository grouping**: optional “folders” grouping in the docked sidebar.
+
+
+![Worktrees and Sidebar screenshot](docs/assets/worktrees-and-sidebar.png)
+
+
+### Build & run (macOS)
+
+- **Production build**: `yarn build:prod`
+  - Output (Apple Silicon): `dist/GitHub Desktop (Worktrees Fork)-darwin-arm64/GitHub Desktop (Worktrees Fork).app`
+- **Development**: `yarn start`
+
+### Notes for cohabiting with the official app
+
+- This fork uses a **different app bundle id/name** and isolates Electron **userData** by default so it can co-exist with the official GitHub Desktop app.
+- Fork features are enabled in production builds via `GITHUB_DESKTOP_WORKTREES_FORK_FEATURES=1` (set automatically by this fork’s bootstrap, can be forced off with `=0`).
+
+---
+
 [GitHub Desktop](https://desktop.github.com/) is an open-source [Electron](https://www.electronjs.org/)-based
 GitHub app. It is written in [TypeScript](https://www.typescriptlang.org) and
 uses [React](https://reactjs.org/).
