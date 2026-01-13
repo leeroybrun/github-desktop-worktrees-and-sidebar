@@ -4,7 +4,29 @@ on:
   push:
     branches:
       - development
+      - sidebar-and-worktrees
   pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Release channel (used to control signing/publishable behavior)'
+        required: false
+        default: development
+        type: choice
+        options:
+          - development
+          - beta
+          - test
+      upload-artifacts:
+        description: 'Upload packaged artifacts from this run'
+        required: false
+        default: true
+        type: boolean
+      sign:
+        description: 'Attempt Windows code signing (requires secrets)'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       repository:
@@ -47,12 +69,12 @@ jobs:
     permissions:
       contents: read
     env:
-      RELEASE_CHANNEL: ${{ inputs.environment }}
+      RELEASE_CHANNEL: ${{ inputs.environment || 'development' }}
     steps:
       - uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repository || github.repository }}
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
           submodules: recursive
       - uses: actions/setup-node@v4
         with:
@@ -72,22 +94,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14-xlarge, windows-2022]
+        # Use standard hosted runners for forks by default.
+        os: [macos-14, windows-2022]
         arch: [x64, arm64]
         include:
-          - os: macos-14-xlarge
+          - os: macos-14
             friendlyName: macOS
           - os: windows-2022
             friendlyName: Windows
     timeout-minutes: 60
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'development' }}
     env:
-      RELEASE_CHANNEL: ${{ inputs.environment }}
+      RELEASE_CHANNEL: ${{ inputs.environment || 'development' }}
     steps:
       - uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repository || github.repository }}
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
           submodules: recursive
       - uses: actions/setup-python@v5
         with:
@@ -151,13 +174,15 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CODE_SIGNING_CLIENT_SECRET }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
-        if: ${{ inputs.upload-artifacts }}
+        if: >-
+          ${{ inputs.upload-artifacts ||
+              (github.event_name == 'push' && github.ref == 'refs/heads/sidebar-and-worktrees') }}
         with:
           name: ${{matrix.friendlyName}}-${{matrix.arch}}
           path: |
-            dist/GitHub Desktop-${{matrix.arch}}.zip
-            dist/GitHubDesktop-*.nupkg
-            dist/GitHubDesktopSetup-${{matrix.arch}}.exe
-            dist/GitHubDesktopSetup-${{matrix.arch}}.msi
+            dist/*.zip
+            dist/*-*.nupkg
+            dist/*Setup-*.exe
+            dist/*Setup-*.msi
             dist/bundle-size.json
           if-no-files-found: error
