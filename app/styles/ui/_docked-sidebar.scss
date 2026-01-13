@@ -91,10 +91,14 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    // Critical: allow the list region to shrink inside this flex column so
+    // the underlying virtualized list can scroll instead of being clipped.
+    min-height: 0;
 
     > .repository-list {
       flex: 1;
       overflow: hidden;
+      min-height: 0;
     }
 
     // Group header styling - keep minimal so we don't introduce odd padding
