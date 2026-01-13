@@ -220,13 +220,19 @@ export class SectionFilterList<
       this.filterTextBox = props.filterTextBox
     }
 
-    this.state = createStateUpdate(props, null)
+    // Explicitly read includeEmptyGroups so eslint can track it as a used prop
+    const includeEmptyGroups = props.includeEmptyGroups
+    this.state = createStateUpdate({ ...props, includeEmptyGroups }, null)
   }
 
   public componentWillReceiveProps(
     nextProps: ISectionFilterListProps<T, GroupIdentifier>
   ) {
-    this.setState(createStateUpdate(nextProps, this.state))
+    // Explicitly read includeEmptyGroups so eslint can track it as a used prop
+    const includeEmptyGroups = nextProps.includeEmptyGroups
+    this.setState(
+      createStateUpdate({ ...nextProps, includeEmptyGroups }, this.state)
+    )
   }
 
   public componentDidUpdate(

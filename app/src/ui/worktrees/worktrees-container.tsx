@@ -43,25 +43,6 @@ export class WorktreesContainer extends React.Component<
   IWorktreesContainerProps,
   IWorktreesContainerState
 > {
-  public constructor(props: IWorktreesContainerProps) {
-    super(props)
-    this.state = {
-      filterText: '',
-    }
-  }
-
-  private onFilterTextChanged = (filterText: string) => {
-    this.setState({ filterText })
-  }
-
-  private onItemClick = (item: IWorktreeListItem) => {
-    this.props.dispatcher.closeFoldout(FoldoutType.Worktrees)
-    // Switch worktrees without adding them as separate "local repositories".
-    this.props.dispatcher.selectRepository(
-      createRepositoryWithPath(this.props.repository, item.worktree.path)
-    )
-  }
-
   private getGroups = memoizeOne((worktrees: ReadonlyArray<IWorktreeState>) => {
     const mainWorktree = worktrees.find(wt => wt.isMain) ?? null
     const linkedWorktrees = worktrees.filter(wt => !wt.isMain)
@@ -94,6 +75,25 @@ export class WorktreesContainer extends React.Component<
 
     return groups
   })
+
+  public constructor(props: IWorktreesContainerProps) {
+    super(props)
+    this.state = {
+      filterText: '',
+    }
+  }
+
+  private onFilterTextChanged = (filterText: string) => {
+    this.setState({ filterText })
+  }
+
+  private onItemClick = (item: IWorktreeListItem) => {
+    this.props.dispatcher.closeFoldout(FoldoutType.Worktrees)
+    // Switch worktrees without adding them as separate "local repositories".
+    this.props.dispatcher.selectRepository(
+      createRepositoryWithPath(this.props.repository, item.worktree.path)
+    )
+  }
 
   private renderItem = (item: IWorktreeListItem, matches: IMatches) => {
     const isCurrent =
@@ -129,6 +129,17 @@ export class WorktreesContainer extends React.Component<
     }
 
     return null
+  }
+
+  private renderNoItems = () => {
+    const { isLoadingWorktrees } = this.props.worktreesState
+    return (
+      <div className="no-items no-results-found">
+        <div className="title">
+          {isLoadingWorktrees ? 'Loading worktrees…' : 'No worktrees found'}
+        </div>
+      </div>
+    )
   }
 
   public render() {
@@ -167,15 +178,7 @@ export class WorktreesContainer extends React.Component<
             // (the filter textbox) so FocusTrap doesn't crash when worktrees are
             // empty/loading.
             disabled={false}
-            renderNoItems={() => (
-              <div className="no-items no-results-found">
-                <div className="title">
-                  {isLoadingWorktrees
-                    ? 'Loading worktrees…'
-                    : 'No worktrees found'}
-                </div>
-              </div>
-            )}
+            renderNoItems={this.renderNoItems}
           />
         </div>
       </div>

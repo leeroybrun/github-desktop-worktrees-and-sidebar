@@ -46,6 +46,155 @@ type FolderGroupIdentifier =
     }
   | { kind: 'ungrouped' }
 
+interface IDockedRepositoryRowProps {
+  readonly dispatcher: Dispatcher
+  readonly repository: Repositoryish
+  readonly repoItem: IRepositoryListItem
+  readonly matches: IMatches
+  readonly hasExpand: boolean
+  readonly isExpanded: boolean
+  readonly folderId: number | null
+  readonly indexInFolder: number
+  readonly repositoryFolderAssignments: ReadonlyMap<number, number>
+  /** Called when a repository drag starts */
+  readonly onRepositoryDragStart?: (repository: Repositoryish) => void
+  /** Called when a repository drag ends */
+  readonly onRepositoryDragEnd?: (repository: Repositoryish) => void
+  readonly onToggleRepositoryExpanded: (repositoryId: number) => void
+}
+
+class DockedRepositoryRow extends React.PureComponent<IDockedRepositoryRowProps> {
+  private onMouseEnter = () => {
+    if (!dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
+      return
+    }
+
+    dragAndDropManager.emitEnterDropTarget({
+      type: DropTargetType.RepositoryInsertionPoint,
+      targetFolderId: this.props.folderId,
+      targetIndex: this.props.indexInFolder,
+    })
+  }
+
+  private onMouseLeave = () => {
+    if (dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
+      dragAndDropManager.emitLeaveDropTarget()
+    }
+  }
+
+  private onExpandClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const repository = this.props.repository
+    if (!(repository instanceof Repository)) {
+      return
+    }
+
+    e.preventDefault()
+    e.stopPropagation()
+    this.props.onToggleRepositoryExpanded(repository.id)
+  }
+
+  private renderLeadingAccessory = (): JSX.Element => {
+    const repository = this.props.repository
+
+    if (!this.props.hasExpand || !(repository instanceof Repository)) {
+      return <span className="repository-list-item-leading-accessory-spacer" />
+    }
+
+    return (
+      <button
+        className={classNames('repository-list-item-leading-accessory', {
+          expanded: this.props.isExpanded,
+        })}
+        onClick={this.onExpandClick}
+        aria-label={
+          this.props.isExpanded ? 'Collapse worktrees' : 'Expand worktrees'
+        }
+        type="button"
+      >
+        <Octicon
+          symbol={
+            this.props.isExpanded
+              ? octicons.triangleDown
+              : octicons.triangleRight
+          }
+        />
+      </button>
+    )
+  }
+
+  private onDragStart = () => {
+    const repository = this.props.repository
+    const folderId =
+      this.props.repositoryFolderAssignments.get(repository.id) ?? null
+
+    dragAndDropManager.setDragData({
+      type: DragType.Repository,
+      repositoryId: repository.id,
+      repositoryName: repository.name,
+      sourceFolderId: folderId,
+    })
+
+    this.props.onRepositoryDragStart?.(repository)
+  }
+
+  private onDragEnd = () => {
+    this.props.onRepositoryDragEnd?.(this.props.repository)
+  }
+
+  private onRenderDragElement = () => {
+    const repository = this.props.repository
+    this.props.dispatcher.setDragElement({
+      type: DragType.Repository,
+      repositoryId: repository.id,
+      repositoryName: repository.name,
+      sourceFolderId:
+        this.props.repositoryFolderAssignments.get(repository.id) ?? null,
+    })
+  }
+
+  private onRemoveDragElement = () => {
+    this.props.dispatcher.clearDragElement()
+  }
+
+  public render() {
+    const repository = this.props.repository
+    const repoItem = this.props.repoItem
+
+    const content = (
+      <div
+        className="docked-repository-row"
+        onMouseEnter={this.onMouseEnter}
+        onMouseLeave={this.onMouseLeave}
+      >
+        <RepositoryListItem
+          repository={repository}
+          needsDisambiguation={repoItem.needsDisambiguation}
+          aheadBehind={repoItem.aheadBehind}
+          changedFilesCount={repoItem.changedFilesCount}
+          matches={this.props.matches}
+          renderLeadingAccessory={this.renderLeadingAccessory}
+        />
+      </div>
+    )
+
+    const isDraggable = !(repository instanceof CloningRepository)
+    return isDraggable ? (
+      <Draggable
+        isEnabled={true}
+        onDragStart={this.onDragStart}
+        onDragEnd={this.onDragEnd}
+        onRenderDragElement={this.onRenderDragElement}
+        onRemoveDragElement={this.onRemoveDragElement}
+        dropTargetSelectors={[]}
+      >
+        {content}
+      </Draggable>
+    ) : (
+      content
+    )
+  }
+}
+
 /** Represents either a repository or a nested worktree in the list */
 interface IDockedRepositoryItem {
   readonly kind: 'repository'
@@ -128,6 +277,394 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
   private onLeaveDropTargetDisposable: Disposable | null = null
   private onDragEndedDisposable: Disposable | null = null
   private currentDropTarget: DropTarget | null = null
+
+  /**
+   * Flatten the existing repository grouping to get consistent per-repo list item
+   * data (text, disambiguation, indicators) without re-implementing it.
+   */
+  private getBaseItemsById = memoizeOne(
+    (
+      repositories: ReadonlyArray<Repositoryish> | null,
+      localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
+      recentRepositories: ReadonlyArray<number>
+    ) => {
+      const byId = new Map<number, IRepositoryListItem>()
+      if (repositories === null) {
+        return byId
+      }
+
+      const groups = groupRepositories(
+        repositories,
+        localRepositoryStateLookup,
+        recentRepositories
+      )
+
+      for (const group of groups) {
+        for (const item of group.items) {
+          byId.set(item.repository.id, item)
+        }
+      }
+
+      return byId
+    }
+  )
+
+  /**
+   * Build groups for folder view (folders + ungrouped). Supports nested worktrees.
+   */
+  private buildFolderGroups = memoizeOne(
+    (
+      repositories: ReadonlyArray<Repositoryish> | null,
+      localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
+      recentRepositories: ReadonlyArray<number>,
+      repositoryFolders: ReadonlyArray<IRepositoryFolder>,
+      repositoryFolderAssignments: ReadonlyMap<number, number>,
+      expandedRepositories: ReadonlySet<number>,
+      getWorktreesForRepository: (
+        repository: Repository
+      ) => IWorktreesState | null,
+      filterText: string,
+      selectedRepositoryPath: string | null
+    ): ReadonlyArray<
+      IFilterListGroup<DockedListItem, FolderGroupIdentifier>
+    > => {
+      if (repositories === null) {
+        return []
+      }
+
+      const baseItemsById = this.getBaseItemsById(
+        repositories,
+        localRepositoryStateLookup,
+        recentRepositories
+      )
+
+      const folders = [...repositoryFolders].sort((a, b) => {
+        const order = a.order - b.order
+        return order !== 0 ? order : a.name.localeCompare(b.name)
+      })
+
+      const itemsByFolderId = new Map<number, Array<IRepositoryListItem>>()
+      const ungrouped: Array<IRepositoryListItem> = []
+
+      for (const repo of repositories) {
+        const item = baseItemsById.get(repo.id)
+        if (!item) {
+          continue
+        }
+
+        const folderId = repositoryFolderAssignments.get(repo.id)
+        if (folderId !== undefined) {
+          const existing = itemsByFolderId.get(folderId) ?? []
+          existing.push(item)
+          itemsByFolderId.set(folderId, existing)
+        } else {
+          ungrouped.push(item)
+        }
+      }
+
+      const toDockedItems = (
+        repoItems: ReadonlyArray<IRepositoryListItem>,
+        folderId: number | null
+      ): DockedListItem[] => {
+        const newItems: DockedListItem[] = []
+
+        for (const [indexInFolder, item] of repoItems.entries()) {
+          const repository = item.repository
+
+          const worktreesState =
+            enableNestedWorktreesInSidebar() && repository instanceof Repository
+              ? getWorktreesForRepository(repository)
+              : null
+          const worktrees = worktreesState?.worktrees ?? []
+          const hasWorktrees = worktrees.length > 1
+          const isExpanded = expandedRepositories.has(repository.id)
+
+          newItems.push({
+            kind: 'repository',
+            id: `repo-${repository.id}`,
+            text: item.text,
+            item,
+            hasWorktrees,
+            isExpanded,
+            folderId,
+            indexInFolder,
+          })
+
+          if (
+            enableNestedWorktreesInSidebar() &&
+            isExpanded &&
+            hasWorktrees &&
+            repository instanceof Repository
+          ) {
+            const linkedWorktrees = worktrees.filter(wt => !wt.isMain)
+            for (const wt of linkedWorktrees) {
+              const worktreeName = wt.branch ?? 'Detached'
+              newItems.push({
+                kind: 'worktree',
+                id: `worktree-${wt.path}`,
+                text: [worktreeName, wt.path],
+                worktree: wt,
+                parentRepository: repository,
+                isCurrent: wt.path === selectedRepositoryPath,
+              })
+            }
+          }
+        }
+
+        return newItems
+      }
+
+      const groups: Array<
+        IFilterListGroup<DockedListItem, FolderGroupIdentifier>
+      > = []
+
+      // Folder groups
+      for (const folder of folders) {
+        const repoItems = itemsByFolderId.get(folder.id) ?? []
+        const ordered = this.orderItemsWithinFolder(repoItems, folder.id)
+
+        const isFiltering = filterText.trim().length > 0
+        const isCollapsed = folder.isCollapsed && !isFiltering
+
+        const items = isCollapsed ? [] : toDockedItems(ordered, folder.id)
+
+        // SectionFilterList skips groups that have no items, so empty folders
+        // wouldn't appear at all. Add a placeholder item so the folder renders.
+        if (!isCollapsed && items.length === 0) {
+          items.push({
+            kind: 'empty-folder',
+            id: `empty-folder-${folder.id}`,
+            text: [''],
+            folderId: folder.id,
+          })
+        }
+
+        groups.push({
+          identifier: {
+            kind: 'folder',
+            folderId: folder.id,
+            name: folder.name,
+            isCollapsed: folder.isCollapsed,
+          },
+          items,
+        })
+      }
+
+      // Ungrouped
+      const orderedUngrouped = this.orderItemsWithinFolder(ungrouped, 0)
+      groups.push({
+        identifier: { kind: 'ungrouped' },
+        items: toDockedItems(orderedUngrouped, null),
+      })
+
+      return groups
+    }
+  )
+
+  private orderItemsWithinFolder = (
+    items: ReadonlyArray<IRepositoryListItem>,
+    folderId: number
+  ) => {
+    const desiredOrder = this.props.repositoryOrderInFolders.get(folderId) ?? []
+    const byId = new Map(items.map(i => [i.repository.id, i] as const))
+
+    const ordered: IRepositoryListItem[] = []
+    for (const id of desiredOrder) {
+      const match = byId.get(id)
+      if (match) {
+        ordered.push(match)
+        byId.delete(id)
+      }
+    }
+
+    // Preserve the stable order for any repositories not yet included
+    for (const item of items) {
+      if (byId.has(item.repository.id)) {
+        ordered.push(item)
+      }
+    }
+
+    return ordered
+  }
+
+  private getSelectedItem = (
+    groups: ReadonlyArray<
+      IFilterListGroup<DockedListItem, FolderGroupIdentifier>
+    >,
+    selectedRepository: Repositoryish | null
+  ): DockedListItem | null => {
+    if (selectedRepository === null) {
+      return null
+    }
+
+    for (const group of groups) {
+      for (const item of group.items) {
+        if (
+          item.kind === 'repository' &&
+          item.item.repository.id === selectedRepository.id
+        ) {
+          return item
+        }
+      }
+    }
+    return null
+  }
+
+  private renderItem = (
+    item: DockedListItem,
+    matches: IMatches
+  ): JSX.Element => {
+    if (item.kind === 'worktree') {
+      return this.renderWorktreeItem(item, matches)
+    }
+    if (item.kind === 'empty-folder') {
+      return this.renderEmptyFolderItem()
+    }
+    return this.renderRepositoryItem(item, matches)
+  }
+
+  private onItemClick = (item: DockedListItem) => {
+    if (item.kind === 'repository') {
+      const hasIndicator =
+        item.item.changedFilesCount > 0 ||
+        (item.item.aheadBehind !== null
+          ? item.item.aheadBehind.ahead > 0 || item.item.aheadBehind.behind > 0
+          : false)
+      this.props.dispatcher.recordRepoClicked(hasIndicator)
+      this.props.onSelectionChanged(item.item.repository)
+    } else if (item.kind === 'worktree') {
+      // Switch worktrees without adding them as separate "local repositories".
+      this.props.onSelectionChanged(
+        createRepositoryWithPath(item.parentRepository, item.worktree.path)
+      )
+    } else {
+      // empty-folder: no-op
+    }
+  }
+
+  private stopPropagation = (
+    event: React.MouseEvent<HTMLButtonElement, MouseEvent>
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  private onFolderActionsButtonClick = async (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const folderIdText = event.currentTarget.dataset.folderId
+    const folderName = event.currentTarget.dataset.folderName
+    if (folderIdText === undefined || folderName === undefined) {
+      return
+    }
+
+    const folderId = parseInt(folderIdText, 10)
+    if (Number.isNaN(folderId)) {
+      return
+    }
+
+    await this.showFolderContextMenu({ folderId, name: folderName })
+  }
+
+  private onFolderHeaderMouseEnter = (
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    if (!dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
+      return
+    }
+
+    const groupKind = event.currentTarget.dataset.groupKind
+    if (groupKind === 'folder') {
+      const folderIdText = event.currentTarget.dataset.folderId
+      const folderName = event.currentTarget.dataset.folderName
+      if (folderIdText === undefined || folderName === undefined) {
+        return
+      }
+
+      const folderId = parseInt(folderIdText, 10)
+      if (Number.isNaN(folderId)) {
+        return
+      }
+
+      dragAndDropManager.emitEnterDropTarget({
+        type: DropTargetType.RepositoryFolder,
+        folderId,
+        folderName,
+      })
+    } else {
+      dragAndDropManager.emitEnterDropTarget({
+        type: DropTargetType.RepositoryFolder,
+        folderId: 0,
+        folderName: 'Ungrouped',
+      })
+    }
+  }
+
+  private onFolderHeaderMouseLeave = () => {
+    if (dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
+      dragAndDropManager.emitLeaveDropTarget()
+    }
+  }
+
+  private onFolderHeaderClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    this.toggleFolderCollapsed(event.currentTarget)
+  }
+
+  private onFolderHeaderKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>
+  ) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+
+    event.preventDefault()
+    this.toggleFolderCollapsed(event.currentTarget)
+  }
+
+  private toggleFolderCollapsed = (target: HTMLDivElement) => {
+    const groupKind = target.dataset.groupKind
+    if (groupKind !== 'folder') {
+      return
+    }
+
+    const folderIdText = target.dataset.folderId
+    if (folderIdText === undefined) {
+      return
+    }
+
+    const folderId = parseInt(folderIdText, 10)
+    if (Number.isNaN(folderId)) {
+      return
+    }
+
+    this.props.dispatcher.toggleRepositoryFolderCollapsed(folderId)
+  }
+
+  private onFolderHeaderContextMenu = async (
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    const groupKind = event.currentTarget.dataset.groupKind
+    if (groupKind !== 'folder') {
+      return
+    }
+
+    const folderIdText = event.currentTarget.dataset.folderId
+    const folderName = event.currentTarget.dataset.folderName
+    if (folderIdText === undefined || folderName === undefined) {
+      return
+    }
+
+    const folderId = parseInt(folderIdText, 10)
+    if (Number.isNaN(folderId)) {
+      return
+    }
+
+    event.preventDefault()
+    await this.showFolderContextMenu({ folderId, name: folderName })
+  }
 
   public componentDidMount() {
     this.onEnterDropTargetDisposable = dragAndDropManager.onEnterDropTarget(
@@ -313,287 +850,6 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     }
   }
 
-  /**
-   * Flatten the existing repository grouping to get consistent per-repo list item
-   * data (text, disambiguation, indicators) without re-implementing it.
-   */
-  private getBaseItemsById = memoizeOne(
-    (
-      repositories: ReadonlyArray<Repositoryish> | null,
-      localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
-      recentRepositories: ReadonlyArray<number>
-    ) => {
-      const byId = new Map<number, IRepositoryListItem>()
-      if (repositories === null) {
-        return byId
-      }
-
-      const groups = groupRepositories(
-        repositories,
-        localRepositoryStateLookup,
-        recentRepositories
-      )
-
-      for (const group of groups) {
-        for (const item of group.items) {
-          byId.set(item.repository.id, item)
-        }
-      }
-
-      return byId
-    }
-  )
-
-  private orderItemsWithinFolder = (
-    items: ReadonlyArray<IRepositoryListItem>,
-    folderId: number
-  ) => {
-    const desiredOrder = this.props.repositoryOrderInFolders.get(folderId) ?? []
-    const byId = new Map(items.map(i => [i.repository.id, i] as const))
-
-    const ordered: IRepositoryListItem[] = []
-    for (const id of desiredOrder) {
-      const match = byId.get(id)
-      if (match) {
-        ordered.push(match)
-        byId.delete(id)
-      }
-    }
-
-    // Preserve the stable order for any repositories not yet included
-    for (const item of items) {
-      if (byId.has(item.repository.id)) {
-        ordered.push(item)
-      }
-    }
-
-    return ordered
-  }
-
-  /**
-   * Build groups for folder view (folders + ungrouped). Supports nested worktrees.
-   */
-  private buildFolderGroups = memoizeOne(
-    (
-      repositories: ReadonlyArray<Repositoryish> | null,
-      localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
-      recentRepositories: ReadonlyArray<number>,
-      repositoryFolders: ReadonlyArray<IRepositoryFolder>,
-      repositoryFolderAssignments: ReadonlyMap<number, number>,
-      expandedRepositories: ReadonlySet<number>,
-      getWorktreesForRepository: (
-        repository: Repository
-      ) => IWorktreesState | null,
-      filterText: string,
-      selectedRepositoryPath: string | null
-    ): ReadonlyArray<
-      IFilterListGroup<DockedListItem, FolderGroupIdentifier>
-    > => {
-      if (repositories === null) {
-        return []
-      }
-
-      const baseItemsById = this.getBaseItemsById(
-        repositories,
-        localRepositoryStateLookup,
-        recentRepositories
-      )
-
-      const folders = [...repositoryFolders].sort((a, b) => {
-        const order = a.order - b.order
-        return order !== 0 ? order : a.name.localeCompare(b.name)
-      })
-
-      const itemsByFolderId = new Map<number, Array<IRepositoryListItem>>()
-      const ungrouped: Array<IRepositoryListItem> = []
-
-      for (const repo of repositories) {
-        const item = baseItemsById.get(repo.id)
-        if (!item) {
-          continue
-        }
-
-        const folderId = repositoryFolderAssignments.get(repo.id)
-        if (folderId !== undefined) {
-          const existing = itemsByFolderId.get(folderId) ?? []
-          existing.push(item)
-          itemsByFolderId.set(folderId, existing)
-        } else {
-          ungrouped.push(item)
-        }
-      }
-
-      const toDockedItems = (
-        repoItems: ReadonlyArray<IRepositoryListItem>,
-        folderId: number | null
-      ): DockedListItem[] => {
-        const newItems: DockedListItem[] = []
-
-        for (const [indexInFolder, item] of repoItems.entries()) {
-          const repository = item.repository
-
-          const worktreesState =
-            enableNestedWorktreesInSidebar() && repository instanceof Repository
-              ? getWorktreesForRepository(repository)
-              : null
-          const worktrees = worktreesState?.worktrees ?? []
-          const hasWorktrees = worktrees.length > 1
-          const isExpanded = expandedRepositories.has(repository.id)
-
-          newItems.push({
-            kind: 'repository',
-            id: `repo-${repository.id}`,
-            text: item.text,
-            item,
-            hasWorktrees,
-            isExpanded,
-            folderId,
-            indexInFolder,
-          })
-
-          if (
-            enableNestedWorktreesInSidebar() &&
-            isExpanded &&
-            hasWorktrees &&
-            repository instanceof Repository
-          ) {
-            const linkedWorktrees = worktrees.filter(wt => !wt.isMain)
-            for (const wt of linkedWorktrees) {
-              const worktreeName = wt.branch ?? 'Detached'
-              newItems.push({
-                kind: 'worktree',
-                id: `worktree-${wt.path}`,
-                text: [worktreeName, wt.path],
-                worktree: wt,
-                parentRepository: repository,
-                isCurrent: wt.path === selectedRepositoryPath,
-              })
-            }
-          }
-        }
-
-        return newItems
-      }
-
-      const groups: Array<
-        IFilterListGroup<DockedListItem, FolderGroupIdentifier>
-      > = []
-
-      // Folder groups
-      for (const folder of folders) {
-        const repoItems = itemsByFolderId.get(folder.id) ?? []
-        const ordered = this.orderItemsWithinFolder(repoItems, folder.id)
-
-        const isFiltering = filterText.trim().length > 0
-        const isCollapsed = folder.isCollapsed && !isFiltering
-
-        const items = isCollapsed ? [] : toDockedItems(ordered, folder.id)
-
-        // SectionFilterList skips groups that have no items, so empty folders
-        // wouldn't appear at all. Add a placeholder item so the folder renders.
-        if (!isCollapsed && items.length === 0) {
-          items.push({
-            kind: 'empty-folder',
-            id: `empty-folder-${folder.id}`,
-            text: [''],
-            folderId: folder.id,
-          })
-        }
-
-        groups.push({
-          identifier: {
-            kind: 'folder',
-            folderId: folder.id,
-            name: folder.name,
-            isCollapsed: folder.isCollapsed,
-          },
-          items,
-        })
-      }
-
-      // Ungrouped
-      const orderedUngrouped = this.orderItemsWithinFolder(ungrouped, 0)
-      groups.push({
-        identifier: { kind: 'ungrouped' },
-        items: toDockedItems(orderedUngrouped, null),
-      })
-
-      return groups
-    }
-  )
-
-  private getSelectedItem = (
-    groups: ReadonlyArray<
-      IFilterListGroup<DockedListItem, FolderGroupIdentifier>
-    >,
-    selectedRepository: Repositoryish | null
-  ): DockedListItem | null => {
-    if (selectedRepository === null) {
-      return null
-    }
-
-    for (const group of groups) {
-      for (const item of group.items) {
-        if (
-          item.kind === 'repository' &&
-          item.item.repository.id === selectedRepository.id
-        ) {
-          return item
-        }
-      }
-    }
-    return null
-  }
-
-  private onItemClick = (item: DockedListItem) => {
-    if (item.kind === 'repository') {
-      const hasIndicator =
-        item.item.changedFilesCount > 0 ||
-        (item.item.aheadBehind !== null
-          ? item.item.aheadBehind.ahead > 0 || item.item.aheadBehind.behind > 0
-          : false)
-      this.props.dispatcher.recordRepoClicked(hasIndicator)
-      this.props.onSelectionChanged(item.item.repository)
-    } else if (item.kind === 'worktree') {
-      // Switch worktrees without adding them as separate "local repositories".
-      this.props.onSelectionChanged(
-        createRepositoryWithPath(item.parentRepository, item.worktree.path)
-      )
-    } else {
-      // empty-folder: no-op
-    }
-  }
-
-  private onDragStart = (repository: Repositoryish) => {
-    const folderId = this.props.repositoryFolderAssignments.get(repository.id)
-
-    dragAndDropManager.setDragData({
-      type: DragType.Repository,
-      repositoryId: repository.id,
-      repositoryName: repository.name,
-      sourceFolderId: folderId ?? null,
-    })
-
-    this.props.onRepositoryDragStart?.(repository)
-  }
-
-  private onDragEnd = (repository: Repositoryish) => {
-    this.props.onRepositoryDragEnd?.(repository)
-  }
-
-  private renderItem = (
-    item: DockedListItem,
-    matches: IMatches
-  ): JSX.Element => {
-    if (item.kind === 'worktree') {
-      return this.renderWorktreeItem(item, matches)
-    }
-    if (item.kind === 'empty-folder') {
-      return this.renderEmptyFolderItem()
-    }
-    return this.renderRepositoryItem(item, matches)
-  }
-
   private renderEmptyFolderItem = () => {
     return <div className="repository-folder-empty">Drop repositories here</div>
   }
@@ -634,124 +890,22 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
       item.hasWorktrees &&
       repository instanceof Repository
 
-    const leadingAccessory = hasExpand ? (
-      <button
-        className={classNames('repository-list-item-leading-accessory', {
-          expanded: item.isExpanded,
-        })}
-        onClick={e => {
-          e.preventDefault()
-          e.stopPropagation()
-          this.props.onToggleRepositoryExpanded(repository.id)
-        }}
-        aria-label={item.isExpanded ? 'Collapse worktrees' : 'Expand worktrees'}
-        type="button"
-      >
-        <Octicon
-          symbol={
-            item.isExpanded ? octicons.triangleDown : octicons.triangleRight
-          }
-        />
-      </button>
-    ) : (
-      <span className="repository-list-item-leading-accessory-spacer" />
+    return (
+      <DockedRepositoryRow
+        dispatcher={this.props.dispatcher}
+        repository={repository}
+        repoItem={repoItem}
+        matches={matches}
+        hasExpand={hasExpand}
+        isExpanded={item.isExpanded}
+        folderId={item.folderId}
+        indexInFolder={item.indexInFolder}
+        repositoryFolderAssignments={this.props.repositoryFolderAssignments}
+        onRepositoryDragStart={this.props.onRepositoryDragStart}
+        onRepositoryDragEnd={this.props.onRepositoryDragEnd}
+        onToggleRepositoryExpanded={this.props.onToggleRepositoryExpanded}
+      />
     )
-
-    const content = (
-      <div
-        className="docked-repository-row"
-        onMouseEnter={() => {
-          if (!dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
-            return
-          }
-          dragAndDropManager.emitEnterDropTarget({
-            type: DropTargetType.RepositoryInsertionPoint,
-            targetFolderId: item.folderId,
-            targetIndex: item.indexInFolder,
-          })
-        }}
-        onMouseLeave={() => {
-          if (dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
-            dragAndDropManager.emitLeaveDropTarget()
-          }
-        }}
-      >
-        <RepositoryListItem
-          repository={repository}
-          needsDisambiguation={repoItem.needsDisambiguation}
-          aheadBehind={repoItem.aheadBehind}
-          changedFilesCount={repoItem.changedFilesCount}
-          matches={matches}
-          renderLeadingAccessory={() => leadingAccessory}
-        />
-      </div>
-    )
-
-    const isDraggable = !(repository instanceof CloningRepository)
-
-    return isDraggable ? (
-      <Draggable
-        isEnabled={true}
-        onDragStart={() => this.onDragStart(repository)}
-        onDragEnd={() => this.onDragEnd(repository)}
-        onRenderDragElement={() =>
-          this.props.dispatcher.setDragElement({
-            type: DragType.Repository,
-            repositoryId: repository.id,
-            repositoryName: repository.name,
-            sourceFolderId:
-              this.props.repositoryFolderAssignments.get(repository.id) ?? null,
-          })
-        }
-        onRemoveDragElement={() => this.props.dispatcher.clearDragElement()}
-        dropTargetSelectors={[]}
-      >
-        {content}
-      </Draggable>
-    ) : (
-      content
-    )
-  }
-
-  private onFolderHeaderMouseEnter = (identifier: FolderGroupIdentifier) => {
-    if (!dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
-      return
-    }
-
-    if (identifier.kind === 'folder') {
-      dragAndDropManager.emitEnterDropTarget({
-        type: DropTargetType.RepositoryFolder,
-        folderId: identifier.folderId,
-        folderName: identifier.name,
-      })
-    } else {
-      dragAndDropManager.emitEnterDropTarget({
-        type: DropTargetType.RepositoryFolder,
-        folderId: 0,
-        folderName: 'Ungrouped',
-      })
-    }
-  }
-
-  private onFolderHeaderMouseLeave = () => {
-    if (dragAndDropManager.isDragOfTypeInProgress(DragType.Repository)) {
-      dragAndDropManager.emitLeaveDropTarget()
-    }
-  }
-
-  private onFolderHeaderMouseUp = (
-    identifier: FolderGroupIdentifier,
-    event: React.MouseEvent<HTMLDivElement>
-  ) => {
-    // Only respond to primary button clicks.
-    if (event.button !== 0) {
-      return
-    }
-
-    // Toggle collapse when not dragging.
-    if (identifier.kind === 'folder') {
-      this.props.dispatcher.toggleRepositoryFolderCollapsed(identifier.folderId)
-    }
   }
 
   private getRepositoryCountForFolderId = (folderId: number) => {
@@ -764,9 +918,10 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     return count
   }
 
-  private showFolderContextMenu = async (
-    identifier: Extract<FolderGroupIdentifier, { kind: 'folder' }>
-  ) => {
+  private showFolderContextMenu = async (identifier: {
+    readonly folderId: number
+    readonly name: string
+  }) => {
     const folderId = identifier.folderId
     const repoCount = this.getRepositoryCountForFolderId(folderId)
 
@@ -803,18 +958,6 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     await showContextualMenu(items)
   }
 
-  private onFolderHeaderContextMenu = async (
-    identifier: FolderGroupIdentifier,
-    event: React.MouseEvent<HTMLDivElement>
-  ) => {
-    if (identifier.kind !== 'folder') {
-      return
-    }
-
-    event.preventDefault()
-    await this.showFolderContextMenu(identifier)
-  }
-
   private renderGroupHeader = (
     identifier: FolderGroupIdentifier
   ): JSX.Element => {
@@ -822,9 +965,13 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
       return (
         <div
           className="filter-list-group-header repository-folder-header"
-          onMouseEnter={() => this.onFolderHeaderMouseEnter(identifier)}
+          role="button"
+          tabIndex={0}
+          data-group-kind="ungrouped"
+          onMouseEnter={this.onFolderHeaderMouseEnter}
           onMouseLeave={this.onFolderHeaderMouseLeave}
-          onMouseUp={e => this.onFolderHeaderMouseUp(identifier, e)}
+          onClick={this.onFolderHeaderClick}
+          onKeyDown={this.onFolderHeaderKeyDown}
         >
           <TooltippedContent
             className="folder-header-content"
@@ -846,10 +993,16 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     return (
       <div
         className="filter-list-group-header repository-folder-header"
-        onMouseEnter={() => this.onFolderHeaderMouseEnter(identifier)}
+        role="button"
+        tabIndex={0}
+        data-group-kind="folder"
+        data-folder-id={identifier.folderId}
+        data-folder-name={label}
+        onMouseEnter={this.onFolderHeaderMouseEnter}
         onMouseLeave={this.onFolderHeaderMouseLeave}
-        onMouseUp={e => this.onFolderHeaderMouseUp(identifier, e)}
-        onContextMenu={e => this.onFolderHeaderContextMenu(identifier, e)}
+        onClick={this.onFolderHeaderClick}
+        onKeyDown={this.onFolderHeaderKeyDown}
+        onContextMenu={this.onFolderHeaderContextMenu}
       >
         <TooltippedContent
           className="folder-header-content"
@@ -865,15 +1018,10 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
           type="button"
           className="folder-actions-button"
           aria-label="Folder actions"
-          onMouseUp={e => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onClick={async e => {
-            e.preventDefault()
-            e.stopPropagation()
-            await this.showFolderContextMenu(identifier)
-          }}
+          data-folder-id={identifier.folderId}
+          data-folder-name={label}
+          onMouseUp={this.stopPropagation}
+          onClick={this.onFolderActionsButtonClick}
         >
           <Octicon symbol={octicons.kebabHorizontal} />
         </button>

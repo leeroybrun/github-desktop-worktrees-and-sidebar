@@ -120,7 +120,12 @@ export class RepositoryDragElement extends React.Component<
     })
 
     return (
-      <div id="repository-drag-element" className={className}>
+      <div
+        id="repository-drag-element"
+        className={className}
+        data-repository-id={this.props.repositoryId}
+        data-source-folder-id={this.props.sourceFolderId ?? undefined}
+      >
         <div className="repository-drag-content">
           <Octicon symbol={octicons.repo} />
           <span className="repository-name">{this.props.repositoryName}</span>
