@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Release channel (used to control signing/publishable behavior)'
+        description:
+          'Release channel (used to control signing/publishable behavior)'
         required: false
         default: development
         type: choice
@@ -176,7 +177,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: >-
           ${{ inputs.upload-artifacts ||
-              (github.event_name == 'push' && github.ref == 'refs/heads/sidebar-and-worktrees') }}
+              (github.event_name == 'push' && github.ref ==
+          'refs/heads/sidebar-and-worktrees') }}
         with:
           name: ${{matrix.friendlyName}}-${{matrix.arch}}
           path: |

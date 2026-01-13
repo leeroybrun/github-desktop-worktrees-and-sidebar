@@ -81,7 +81,9 @@ export class WorktreesDropdown extends React.Component<IWorktreesDropdownProps> 
         title = currentWorktree.branch || 'Detached'
         tooltip = `Worktree at ${currentWorktree.path}`
       }
-      description = `${worktrees.length} worktree${worktrees.length !== 1 ? 's' : ''}`
+      description = `${worktrees.length} worktree${
+        worktrees.length !== 1 ? 's' : ''
+      }`
     } else {
       title = 'No worktree'
       tooltip = 'No current worktree'

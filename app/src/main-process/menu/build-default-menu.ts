@@ -207,8 +207,12 @@ export function buildDefaultMenu({
         ? [
             {
               label: __DARWIN__
-                ? `${isRepositorySidebarDocked ? 'Hide' : 'Show'} Repository Sidebar`
-                : `${isRepositorySidebarDocked ? 'Hide' : 'Show'} Repository &Sidebar`,
+                ? `${
+                    isRepositorySidebarDocked ? 'Hide' : 'Show'
+                  } Repository Sidebar`
+                : `${
+                    isRepositorySidebarDocked ? 'Hide' : 'Show'
+                  } Repository &Sidebar`,
               id: 'toggle-repository-sidebar',
               accelerator: 'CmdOrCtrl+\\',
               click: emit('toggle-repository-sidebar'),

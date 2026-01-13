@@ -2277,8 +2277,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       getNumber(worktreesDropdownWidthConfigKey, defaultWorktreesDropdownWidth)
     )
     this.repositoryGroupingMode =
-      (localStorage.getItem(repositoryGroupingModeConfigKey) as RepositoryGroupingMode) ||
-      'owner'
+      (localStorage.getItem(
+        repositoryGroupingModeConfigKey
+      ) as RepositoryGroupingMode) || 'owner'
     this.repositoryFolders = this.loadRepositoryFolders()
     this.repositoryFolderAssignments = this.loadRepositoryFolderAssignments()
     this.repositoryOrderInFolders = this.loadRepositoryOrderInFolders()
@@ -8736,7 +8737,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
   /**
    * Set the repository grouping mode
    */
-  public _setRepositoryGroupingMode(mode: RepositoryGroupingMode): Promise<void> {
+  public _setRepositoryGroupingMode(
+    mode: RepositoryGroupingMode
+  ): Promise<void> {
     this.repositoryGroupingMode = mode
     localStorage.setItem(repositoryGroupingModeConfigKey, mode)
     this.emitUpdate()
@@ -8867,9 +8870,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return Promise.resolve()
   }
 
-  public _reorderFolders(
-    folderIds: ReadonlyArray<number>
-  ): Promise<void> {
+  public _reorderFolders(folderIds: ReadonlyArray<number>): Promise<void> {
     this.repositoryFolders = folderIds
       .map((id, index) => {
         const folder = this.repositoryFolders.find(f => f.id === id)
@@ -8911,7 +8912,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       const stored = localStorage.getItem(repositoryFolderAssignmentsConfigKey)
       if (stored) {
         const parsed = JSON.parse(stored)
-        return new Map(Object.entries(parsed).map(([k, v]) => [parseInt(k), v as number]))
+        return new Map(
+          Object.entries(parsed).map(([k, v]) => [parseInt(k), v as number])
+        )
       }
     } catch (e) {
       log.error('Failed to load repository folder assignments', e)
@@ -8922,7 +8925,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private saveRepositoryFolderAssignments(): void {
     try {
       const obj = Object.fromEntries(this.repositoryFolderAssignments)
-      localStorage.setItem(repositoryFolderAssignmentsConfigKey, JSON.stringify(obj))
+      localStorage.setItem(
+        repositoryFolderAssignmentsConfigKey,
+        JSON.stringify(obj)
+      )
     } catch (e) {
       log.error('Failed to save repository folder assignments', e)
     }
@@ -8934,7 +8940,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
       if (stored) {
         const parsed = JSON.parse(stored)
         return new Map(
-          Object.entries(parsed).map(([k, v]) => [parseInt(k), v as ReadonlyArray<number>])
+          Object.entries(parsed).map(([k, v]) => [
+            parseInt(k),
+            v as ReadonlyArray<number>,
+          ])
         )
       }
     } catch (e) {
@@ -8946,7 +8955,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private saveRepositoryOrderInFolders(): void {
     try {
       const obj = Object.fromEntries(this.repositoryOrderInFolders)
-      localStorage.setItem(repositoryOrderInFoldersConfigKey, JSON.stringify(obj))
+      localStorage.setItem(
+        repositoryOrderInFoldersConfigKey,
+        JSON.stringify(obj)
+      )
     } catch (e) {
       log.error('Failed to save repository order in folders', e)
     }

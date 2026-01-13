@@ -76,7 +76,10 @@ interface IEmptyFolderItem {
   readonly folderId: number | null
 }
 
-type DockedListItem = IDockedRepositoryItem | IDockedWorktreeItem | IEmptyFolderItem
+type DockedListItem =
+  | IDockedRepositoryItem
+  | IDockedWorktreeItem
+  | IEmptyFolderItem
 
 interface IDockedRepositoriesListProps {
   readonly dispatcher: Dispatcher
@@ -136,9 +139,11 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
       }
     )
 
-    this.onLeaveDropTargetDisposable = dragAndDropManager.onLeaveDropTarget(() => {
-      this.currentDropTarget = null
-    })
+    this.onLeaveDropTargetDisposable = dragAndDropManager.onLeaveDropTarget(
+      () => {
+        this.currentDropTarget = null
+      }
+    )
 
     this.onDragEndedDisposable = dragAndDropManager.onDragEnded(() => {
       this.onRepositoryDragEnded()
@@ -158,7 +163,9 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     return this.props.repositoryFolderAssignments.get(repositoryId) ?? 0
   }
 
-  private getOrderedRepositoryIdsForFolder(folderKey: number): ReadonlyArray<number> {
+  private getOrderedRepositoryIdsForFolder(
+    folderKey: number
+  ): ReadonlyArray<number> {
     const members: number[] = []
     for (const repo of this.props.repositories) {
       const key = this.getFolderKeyForRepositoryId(repo.id)
@@ -167,7 +174,8 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
       }
     }
 
-    const desiredOrder = this.props.repositoryOrderInFolders.get(folderKey) ?? []
+    const desiredOrder =
+      this.props.repositoryOrderInFolders.get(folderKey) ?? []
     const remaining = new Set(members)
 
     const ordered: number[] = []
@@ -203,16 +211,20 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     const sourceFolderKey = dragData.sourceFolderId ?? 0
 
     if (dropTarget.type === DropTargetType.RepositoryFolder) {
-      const targetFolderId = dropTarget.folderId === 0 ? null : dropTarget.folderId
+      const targetFolderId =
+        dropTarget.folderId === 0 ? null : dropTarget.folderId
       const targetFolderKey = targetFolderId ?? 0
 
       if (this.getFolderKeyForRepositoryId(repositoryId) !== targetFolderKey) {
-        await this.props.dispatcher.assignRepositoryToFolder(repositoryId, targetFolderId)
+        await this.props.dispatcher.assignRepositoryToFolder(
+          repositoryId,
+          targetFolderId
+        )
       }
 
-      const sourceOrder = [...this.getOrderedRepositoryIdsForFolder(sourceFolderKey)].filter(
-        id => id !== repositoryId
-      )
+      const sourceOrder = [
+        ...this.getOrderedRepositoryIdsForFolder(sourceFolderKey),
+      ].filter(id => id !== repositoryId)
       const targetOrder = [
         ...this.getOrderedRepositoryIdsForFolder(targetFolderKey).filter(
           id => id !== repositoryId
@@ -241,17 +253,24 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
       const targetFolderId = dropTarget.targetFolderId
 
       if (this.getFolderKeyForRepositoryId(repositoryId) !== targetFolderKey) {
-        await this.props.dispatcher.assignRepositoryToFolder(repositoryId, targetFolderId)
+        await this.props.dispatcher.assignRepositoryToFolder(
+          repositoryId,
+          targetFolderId
+        )
       }
 
-      const sourceOrder = [...this.getOrderedRepositoryIdsForFolder(sourceFolderKey)]
+      const sourceOrder = [
+        ...this.getOrderedRepositoryIdsForFolder(sourceFolderKey),
+      ]
       const targetOrder =
         sourceFolderKey === targetFolderKey
           ? sourceOrder
           : [...this.getOrderedRepositoryIdsForFolder(targetFolderKey)]
 
       const sourceIndexBefore =
-        sourceFolderKey === targetFolderKey ? targetOrder.indexOf(repositoryId) : -1
+        sourceFolderKey === targetFolderKey
+          ? targetOrder.indexOf(repositoryId)
+          : -1
 
       const removeFrom = (list: number[]) => {
         const idx = list.indexOf(repositoryId)
@@ -362,10 +381,14 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
       repositoryFolders: ReadonlyArray<IRepositoryFolder>,
       repositoryFolderAssignments: ReadonlyMap<number, number>,
       expandedRepositories: ReadonlySet<number>,
-      getWorktreesForRepository: (repository: Repository) => IWorktreesState | null,
+      getWorktreesForRepository: (
+        repository: Repository
+      ) => IWorktreesState | null,
       filterText: string,
       selectedRepositoryPath: string | null
-    ): ReadonlyArray<IFilterListGroup<DockedListItem, FolderGroupIdentifier>> => {
+    ): ReadonlyArray<
+      IFilterListGroup<DockedListItem, FolderGroupIdentifier>
+    > => {
       if (repositories === null) {
         return []
       }
@@ -452,8 +475,9 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
         return newItems
       }
 
-      const groups: Array<IFilterListGroup<DockedListItem, FolderGroupIdentifier>> =
-        []
+      const groups: Array<
+        IFilterListGroup<DockedListItem, FolderGroupIdentifier>
+      > = []
 
       // Folder groups
       for (const folder of folders) {
@@ -526,8 +550,7 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
       const hasIndicator =
         item.item.changedFilesCount > 0 ||
         (item.item.aheadBehind !== null
-          ? item.item.aheadBehind.ahead > 0 ||
-            item.item.aheadBehind.behind > 0
+          ? item.item.aheadBehind.ahead > 0 || item.item.aheadBehind.behind > 0
           : false)
       this.props.dispatcher.recordRepoClicked(hasIndicator)
       this.props.onSelectionChanged(item.item.repository)
@@ -585,7 +608,9 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     const icon = isCurrent ? octicons.check : octicons.gitBranch
 
     return (
-      <div className={classNames('nested-worktree-item', { current: isCurrent })}>
+      <div
+        className={classNames('nested-worktree-item', { current: isCurrent })}
+      >
         <Octicon symbol={icon} />
         <span className="worktree-name">
           <HighlightText text={displayName} highlight={matches.title} />
@@ -623,7 +648,9 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
         type="button"
       >
         <Octicon
-          symbol={item.isExpanded ? octicons.triangleDown : octicons.triangleRight}
+          symbol={
+            item.isExpanded ? octicons.triangleDown : octicons.triangleRight
+          }
         />
       </button>
     ) : (
@@ -761,7 +788,9 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
         action: async () => {
           const message =
             repoCount > 0
-              ? `Delete folder "${identifier.name}"? ${repoCount} repository${repoCount === 1 ? '' : 'ies'} will be moved to Ungrouped.`
+              ? `Delete folder "${identifier.name}"? ${repoCount} repository${
+                  repoCount === 1 ? '' : 'ies'
+                } will be moved to Ungrouped.`
               : `Delete folder "${identifier.name}"?`
           if (!window.confirm(message)) {
             return
@@ -786,7 +815,9 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     await this.showFolderContextMenu(identifier)
   }
 
-  private renderGroupHeader = (identifier: FolderGroupIdentifier): JSX.Element => {
+  private renderGroupHeader = (
+    identifier: FolderGroupIdentifier
+  ): JSX.Element => {
     if (identifier.kind === 'ungrouped') {
       return (
         <div
@@ -808,7 +839,9 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
     }
 
     const label = identifier.name
-    const icon = identifier.isCollapsed ? octicons.triangleRight : octicons.triangleDown
+    const icon = identifier.isCollapsed
+      ? octicons.triangleRight
+      : octicons.triangleDown
 
     return (
       <div

@@ -126,8 +126,7 @@ export class DockedRepositorySidebar extends React.Component<
   }
 
   private onToggleGroupingMode = () => {
-    const newMode =
-      this.props.groupingMode === 'owner' ? 'folder' : 'owner'
+    const newMode = this.props.groupingMode === 'owner' ? 'folder' : 'owner'
     this.props.dispatcher.setRepositoryGroupingMode(newMode)
   }
 
@@ -177,7 +176,9 @@ export class DockedRepositorySidebar extends React.Component<
                 <TextBox
                   value={this.state.newFolderName}
                   onValueChanged={this.onNewFolderNameChanged}
-                  placeholder={__DARWIN__ ? 'New Folder Name' : 'New folder name'}
+                  placeholder={
+                    __DARWIN__ ? 'New Folder Name' : 'New folder name'
+                  }
                   autoFocus={true}
                   onEnterPressed={this.onSubmitCreateFolder}
                   ariaLabel={__DARWIN__ ? 'New Folder Name' : 'New folder name'}
@@ -248,7 +249,9 @@ export class DockedRepositorySidebar extends React.Component<
                 repositories={this.props.repositories}
                 selectedRepository={this.props.selectedRepository}
                 recentRepositories={this.props.recentRepositories}
-                localRepositoryStateLookup={this.props.localRepositoryStateLookup}
+                localRepositoryStateLookup={
+                  this.props.localRepositoryStateLookup
+                }
                 groupingMode={this.props.groupingMode}
                 repositoryFolders={this.props.repositoryFolders}
                 repositoryFolderAssignments={
@@ -280,7 +283,9 @@ export class DockedRepositorySidebar extends React.Component<
                 onSelectionChanged={this.props.onSelectionChanged}
                 repositories={this.props.repositories}
                 recentRepositories={this.props.recentRepositories}
-                localRepositoryStateLookup={this.props.localRepositoryStateLookup}
+                localRepositoryStateLookup={
+                  this.props.localRepositoryStateLookup
+                }
                 askForConfirmationOnRemoveRepository={
                   this.props.askForConfirmationOnRemoveRepository
                 }

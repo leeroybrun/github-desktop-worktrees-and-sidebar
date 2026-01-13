@@ -4,7 +4,11 @@ import memoizeOne from 'memoize-one'
 
 import { Dispatcher } from '../dispatcher'
 import { Repository, createRepositoryWithPath } from '../../models/repository'
-import { FoldoutType, IWorktreeState, IWorktreesState } from '../../lib/app-state'
+import {
+  FoldoutType,
+  IWorktreeState,
+  IWorktreesState,
+} from '../../lib/app-state'
 import { IMatches } from '../../lib/fuzzy-find'
 import { IFilterListGroup } from '../lib/filter-list'
 import { SectionFilterList } from '../lib/section-filter-list'
@@ -58,40 +62,38 @@ export class WorktreesContainer extends React.Component<
     )
   }
 
-  private getGroups = memoizeOne(
-    (worktrees: ReadonlyArray<IWorktreeState>) => {
-      const mainWorktree = worktrees.find(wt => wt.isMain) ?? null
-      const linkedWorktrees = worktrees.filter(wt => !wt.isMain)
+  private getGroups = memoizeOne((worktrees: ReadonlyArray<IWorktreeState>) => {
+    const mainWorktree = worktrees.find(wt => wt.isMain) ?? null
+    const linkedWorktrees = worktrees.filter(wt => !wt.isMain)
 
-      const groups: Array<IFilterListGroup<IWorktreeListItem>> = []
+    const groups: Array<IFilterListGroup<IWorktreeListItem>> = []
 
-      if (mainWorktree !== null) {
-        groups.push({
-          identifier: 'main',
-          items: [
-            {
-              id: mainWorktree.path,
-              text: [mainWorktree.branch ?? 'Main'],
-              worktree: mainWorktree,
-            },
-          ],
-        })
-      }
-
-      if (linkedWorktrees.length > 0) {
-        groups.push({
-          identifier: 'linked',
-          items: linkedWorktrees.map(wt => ({
-            id: wt.path,
-            text: [wt.branch ?? 'Detached'],
-            worktree: wt,
-          })),
-        })
-      }
-
-      return groups
+    if (mainWorktree !== null) {
+      groups.push({
+        identifier: 'main',
+        items: [
+          {
+            id: mainWorktree.path,
+            text: [mainWorktree.branch ?? 'Main'],
+            worktree: mainWorktree,
+          },
+        ],
+      })
     }
-  )
+
+    if (linkedWorktrees.length > 0) {
+      groups.push({
+        identifier: 'linked',
+        items: linkedWorktrees.map(wt => ({
+          id: wt.path,
+          text: [wt.branch ?? 'Detached'],
+          worktree: wt,
+        })),
+      })
+    }
+
+    return groups
+  })
 
   private renderItem = (item: IWorktreeListItem, matches: IMatches) => {
     const isCurrent =
@@ -99,7 +101,9 @@ export class WorktreesContainer extends React.Component<
 
     return (
       <WorktreeListItem
-        name={item.worktree.branch ?? (item.worktree.isMain ? 'Main' : 'Detached')}
+        name={
+          item.worktree.branch ?? (item.worktree.isMain ? 'Main' : 'Detached')
+        }
         isCurrentWorktree={isCurrent}
         matches={matches}
         tooltip={item.worktree.path}
@@ -166,7 +170,9 @@ export class WorktreesContainer extends React.Component<
             renderNoItems={() => (
               <div className="no-items no-results-found">
                 <div className="title">
-                  {isLoadingWorktrees ? 'Loading worktrees…' : 'No worktrees found'}
+                  {isLoadingWorktrees
+                    ? 'Loading worktrees…'
+                    : 'No worktrees found'}
                 </div>
               </div>
             )}

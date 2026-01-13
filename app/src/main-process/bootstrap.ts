@@ -69,4 +69,3 @@ configureUserDataPath()
 // Load the real main process entry after userData is configured.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 require('./main')
-

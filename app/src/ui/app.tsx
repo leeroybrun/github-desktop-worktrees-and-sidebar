@@ -3009,9 +3009,7 @@ export class App extends React.Component<IAppProps, IAppState> {
               className="pin-repository-sidebar-button"
               onClick={this.onToggleRepositorySidebarDockedFromDropdown}
               tooltip={
-                isDocked
-                  ? 'Unpin repository sidebar'
-                  : 'Pin repository sidebar'
+                isDocked ? 'Unpin repository sidebar' : 'Pin repository sidebar'
               }
             >
               <Octicon symbol={isDocked ? octicons.pinSlash : octicons.pin} />
