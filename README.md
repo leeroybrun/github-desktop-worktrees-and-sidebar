@@ -1,6 +1,5 @@
 # [GitHub Desktop](https://desktop.github.com)
 
-[!IMPORTANT]
 ## Fork: **Worktrees and Sidebar**
 
 This repository is a **fork of GitHub Desktop** focused on improving multi-repository workflows and adding first-class **Git worktree** support.
