@@ -9,7 +9,7 @@ This repository is a **fork of GitHub Desktop** focused on improving multi-repos
 - **Custom repository grouping**: optional “folders” grouping in the docked sidebar.
 
 
-![Worktrees and Sidebar screenshot](docs/assets/worktrees-and-sidebar.png)
+![Worktrees and Sidebar screenshot](docs/assets/worktrees-and-sidebar.jpg)
 
 
 ### Download
