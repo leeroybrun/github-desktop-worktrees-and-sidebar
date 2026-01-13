@@ -12,6 +12,14 @@ This repository is a **fork of GitHub Desktop** focused on improving multi-repos
 ![Worktrees and Sidebar screenshot](docs/assets/worktrees-and-sidebar.png)
 
 
+### Download
+Download the latest executable from the [Releases](https://github.com/leeroybrun/github-desktop-worktrees-and-sidebar/releases) page.
+
+> ⚠️ **macOS note**: The app is not signed with an Apple Developer certificate. If macOS blocks the app, run:
+> ```bash
+> xattr -cr "/Applications/GitHub Desktop (Worktrees Fork).app"
+> ```
+
 ### Build & run (macOS)
 
 - **Production build**: `yarn build:prod`
