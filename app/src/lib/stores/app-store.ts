@@ -4388,6 +4388,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
     })
 
     await this._refreshRepository(repository)
+    // Worktree entries display the branch name for each worktree. If the user
+    // checked out a different branch (including creating a new branch), refresh
+    // worktrees so the sidebar and worktrees dropdown stay in sync.
+    this._refreshWorktrees(repository)
     return repository
   }
 
@@ -8993,9 +8997,22 @@ export class AppStore extends TypedBaseStore<IAppState> {
    * Refresh the worktrees for a repository
    */
   public async _refreshWorktrees(repository: Repository): Promise<void> {
-    this.repositoryStateCache.updateWorktreesState(repository, () => ({
-      isLoadingWorktrees: true,
-    }))
+    // `RepositoryStateCache` is keyed by `repository.hash` (which includes `path`).
+    // When selecting a linked worktree we use `createRepositoryWithPath`, which
+    // means the selected Repository instance will have a different hash than the
+    // "main" Repository instance in the repository list. To keep sidebar UI in
+    // sync, update worktree state for all Repository instances sharing this id.
+    const repositoriesToUpdate = this.repositories.filter(
+      r => r instanceof Repository && r.id === repository.id
+    ) as ReadonlyArray<Repository>
+
+    for (const r of repositoriesToUpdate.length > 0
+      ? repositoriesToUpdate
+      : [repository]) {
+      this.repositoryStateCache.updateWorktreesState(r, () => ({
+        isLoadingWorktrees: true,
+      }))
+    }
     this.emitUpdate()
 
     try {
@@ -9012,16 +9029,24 @@ export class AppStore extends TypedBaseStore<IAppState> {
       const currentWorktree =
         worktreeStates.find(wt => wt.path === repository.path) || null
 
-      this.repositoryStateCache.updateWorktreesState(repository, () => ({
-        worktrees: worktreeStates,
-        currentWorktree,
-        isLoadingWorktrees: false,
-      }))
+      for (const r of repositoriesToUpdate.length > 0
+        ? repositoriesToUpdate
+        : [repository]) {
+        this.repositoryStateCache.updateWorktreesState(r, () => ({
+          worktrees: worktreeStates,
+          currentWorktree,
+          isLoadingWorktrees: false,
+        }))
+      }
     } catch (e) {
       log.error('Failed to load worktrees', e)
-      this.repositoryStateCache.updateWorktreesState(repository, () => ({
-        isLoadingWorktrees: false,
-      }))
+      for (const r of repositoriesToUpdate.length > 0
+        ? repositoriesToUpdate
+        : [repository]) {
+        this.repositoryStateCache.updateWorktreesState(r, () => ({
+          isLoadingWorktrees: false,
+        }))
+      }
     }
 
     this.emitUpdate()

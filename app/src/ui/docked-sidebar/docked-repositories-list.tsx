@@ -396,7 +396,12 @@ export class DockedRepositoriesList extends React.Component<IDockedRepositoriesL
             hasWorktrees &&
             repository instanceof Repository
           ) {
-            const linkedWorktrees = worktrees.filter(wt => !wt.isMain)
+            // Don't rely on `isMain` here (it is derived from git output ordering).
+            // For the nested list we only want "other worktrees", i.e. those whose
+            // path differs from the repository row (main working tree) path.
+            const linkedWorktrees = worktrees.filter(
+              wt => wt.path !== repository.path
+            )
             for (const wt of linkedWorktrees) {
               const worktreeName = wt.branch ?? 'Detached'
               newItems.push({
