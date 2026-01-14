@@ -323,6 +323,11 @@
   display: flex;
   flex: 1;
   overflow: hidden;
+  // Critical for nested flex layouts: allow children (sidebar + repo content)
+  // to shrink within the available vertical space. Without this, the content
+  // can be visually clipped while still reporting a larger height to
+  // ResizeObserver, causing virtualized lists to "miss" the last rows.
+  min-height: 0;
 
   &.with-docked-sidebar {
     .app-repository-content {
@@ -330,6 +335,7 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      min-height: 0;
     }
   }
 }
@@ -339,6 +345,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 // Resizable container for docked sidebar
