@@ -34,6 +34,16 @@ on:
         required: false
         default: ''
         type: string
+      release-mode:
+        description:
+          'Release versioning mode when release-tag is blank (update=reuse tag,
+          revision=create a new tag per run)'
+        required: false
+        default: update
+        type: choice
+        options:
+          - update
+          - revision
       sign:
         description: 'Attempt Windows code signing (requires secrets)'
         required: false
@@ -58,6 +68,10 @@ on:
         type: boolean
       release-tag:
         default: ''
+        required: false
+        type: string
+      release-mode:
+        default: update
         required: false
         type: string
       environment:
@@ -243,12 +257,25 @@ jobs:
           if [ -n "${{ inputs.release-tag }}" ]; then
             TAG="${{ inputs.release-tag }}"
           else
-            TAG="worktrees-fork-v$VERSION"
+            # For pushes we default to creating a new release each run so forks
+            # can publish incremental builds even when the upstream version is
+            # unchanged (e.g. multiple 3.5.4-based builds).
+            if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+              TAG="worktrees-fork-v$VERSION-r$GITHUB_RUN_NUMBER"
+            else
+              MODE="${{ inputs.release-mode || 'update' }}"
+              if [ "$MODE" = "revision" ]; then
+                TAG="worktrees-fork-v$VERSION-r$GITHUB_RUN_NUMBER"
+              else
+                TAG="worktrees-fork-v$VERSION"
+              fi
+            fi
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
       - name: Create or update GitHub Release
         uses: ncipollo/release-action@v1
         with:
+          token: ${{ secrets.WORKTREES_FORK_RELEASE_TOKEN || github.token }}
           tag: ${{ steps.release_meta.outputs.tag }}
           name:
             GitHub Desktop (Worktrees Fork) ${{
