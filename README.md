@@ -7,6 +7,7 @@ This repository is a **fork of GitHub Desktop** focused on improving multi-repos
 - **Persistent (docked) repository sidebar**: keep the repo list open, resizable, with a pin/toggle.
 - **Worktrees UX**: toolbar Worktrees dropdown + optional nested worktrees under each repo in the sidebar.
 - **Custom repository grouping**: optional “folders” grouping in the docked sidebar.
+- **Repo-scoped Copilot commit instructions**: customize generated commit messages per-repository (e.g., enforce Conventional Commits).
 
 
 ![Worktrees and Sidebar screenshot](docs/assets/worktrees-and-sidebar.jpg)
@@ -30,6 +31,24 @@ Download the latest executable from the [Releases](https://github.com/leeroybrun
 
 - This fork uses a **different app bundle id/name** and isolates Electron **userData** by default so it can co-exist with the official GitHub Desktop app.
 - Fork features are enabled in production builds via `GITHUB_DESKTOP_WORKTREES_FORK_FEATURES=1` (set automatically by this fork’s bootstrap, can be forced off with `=0`).
+
+### Copilot: repo-scoped commit instructions
+
+This fork adds support for repository-specific instructions when using **“Generate commit message with Copilot”**.
+
+- Create a file at: `.github/copilot-commit-instructions.md`
+- The contents will be sent along with the diff when generating a commit message.
+
+Example (Conventional Commits):
+
+```md
+Use Conventional Commits.
+
+- Title must be: type(scope): subject
+- Use one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+- Keep the title ≤ 72 characters
+- If needed, put details in the description
+```
 
 ---
 
