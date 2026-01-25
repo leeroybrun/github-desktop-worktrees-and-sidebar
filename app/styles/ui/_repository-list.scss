@@ -137,11 +137,14 @@
   .repository-foldout-header {
     display: flex;
     justify-content: flex-end;
+    gap: var(--spacing-third);
     padding: var(--spacing-half) var(--spacing);
     border-bottom: var(--base-border);
     flex-shrink: 0;
 
-    .pin-repository-sidebar-button {
+    .pin-repository-sidebar-button,
+    .repository-grouping-toggle-button,
+    .repository-create-folder-button {
       padding: var(--spacing-third);
       background: transparent;
       border: none;

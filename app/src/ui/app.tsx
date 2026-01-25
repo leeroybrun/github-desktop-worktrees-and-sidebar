@@ -47,7 +47,7 @@ import { CloningRepository } from '../models/cloning-repository'
 
 import { TitleBar, ZoomInfo, FullScreenInfo } from './window'
 
-import { RepositoriesList } from './repositories-list'
+import { RepositoryListView } from './repositories-list'
 import { RepositoryView } from './repository'
 import { RenameBranch } from './rename-branch'
 import { DeleteBranch, DeleteRemoteBranch } from './delete-branch'
@@ -192,6 +192,7 @@ import {
   enableMultipleEnterpriseAccounts,
   enableWorktreeSupport,
   enableDockedRepositorySidebar,
+  enableCustomRepositoryFolders,
 } from '../lib/feature-flag'
 import {
   ISecretScanResult,
@@ -3000,11 +3001,44 @@ export class App extends React.Component<IAppProps, IAppState> {
 
     const canDockSidebar = enableDockedRepositorySidebar()
     const isDocked = this.state.repositorySidebarDocked
+    const canUseFolders = enableCustomRepositoryFolders()
+    const isFolderMode =
+      canUseFolders && this.state.repositoryGroupingMode === 'folder'
 
     return (
       <div className="repository-foldout">
-        {canDockSidebar && (
+        {(canDockSidebar || canUseFolders) && (
           <div className="repository-foldout-header">
+            {canUseFolders && (
+              <>
+                {isFolderMode && (
+                  <Button
+                    className="repository-create-folder-button"
+                    onClick={this.onCreateRepositoryFolderFromDropdown}
+                    tooltip="Create new folder"
+                  >
+                    <Octicon symbol={octicons.plusCircle} />
+                  </Button>
+                )}
+                <Button
+                  className="repository-grouping-toggle-button"
+                  onClick={this.onToggleRepositoryGroupingModeFromDropdown}
+                  tooltip={
+                    this.state.repositoryGroupingMode === 'owner'
+                      ? 'Switch to folder view'
+                      : 'Switch to owner view'
+                  }
+                >
+                  <Octicon
+                    symbol={
+                      this.state.repositoryGroupingMode === 'owner'
+                        ? octicons.fileDirectory
+                        : octicons.person
+                    }
+                  />
+                </Button>
+              </>
+            )}
             <Button
               className="pin-repository-sidebar-button"
               onClick={this.onToggleRepositorySidebarDockedFromDropdown}
@@ -3016,28 +3050,78 @@ export class App extends React.Component<IAppProps, IAppState> {
             </Button>
           </div>
         )}
-        <RepositoriesList
-          filterText={filterText}
-          onFilterTextChanged={this.onRepositoryFilterTextChanged}
-          selectedRepository={selectedRepository}
-          onSelectionChanged={this.onSelectionChanged}
-          repositories={this.state.repositories}
-          recentRepositories={this.state.recentRepositories}
-          localRepositoryStateLookup={this.state.localRepositoryStateLookup}
-          askForConfirmationOnRemoveRepository={
-            this.state.askForConfirmationOnRepositoryRemoval
-          }
-          onRemoveRepository={this.removeRepository}
-          onViewOnGitHub={this.viewOnGitHub}
-          onOpenInShell={this.openInShell}
-          onShowRepository={this.showRepository}
-          onOpenInExternalEditor={this.openInExternalEditor}
-          externalEditorLabel={this.externalEditorLabel}
-          shellLabel={useCustomShell ? undefined : selectedShell}
-          dispatcher={this.props.dispatcher}
-        />
+        {isFolderMode ? (
+          <RepositoryListView
+            groupingMode="folder"
+            dispatcher={this.props.dispatcher}
+            repositories={this.state.repositories}
+            selectedRepository={selectedRepository}
+            recentRepositories={this.state.recentRepositories}
+            localRepositoryStateLookup={this.state.localRepositoryStateLookup}
+            filterText={filterText}
+            onFilterTextChanged={this.onRepositoryFilterTextChanged}
+            onSelectionChanged={this.onSelectionChanged}
+            askForConfirmationOnRemoveRepository={
+              this.state.askForConfirmationOnRepositoryRemoval
+            }
+            onRemoveRepository={this.removeRepository}
+            onViewOnGitHub={this.viewOnGitHub}
+            onOpenInShell={this.openInShell}
+            onShowRepository={this.showRepository}
+            onOpenInExternalEditor={this.openInExternalEditor}
+            externalEditorLabel={this.externalEditorLabel}
+            shellLabel={useCustomShell ? undefined : selectedShell}
+            repositoryFolders={this.state.repositoryFolders}
+            repositoryFolderAssignments={this.state.repositoryFolderAssignments}
+            repositoryOrderInFolders={this.state.repositoryOrderInFolders}
+            expandedRepositories={this.state.expandedRepositories}
+            getWorktreesForRepository={this.getWorktreesForRepository}
+            onToggleRepositoryExpanded={this.onToggleRepositoryExpanded}
+          />
+        ) : (
+          <RepositoryListView
+            groupingMode="owner"
+            dispatcher={this.props.dispatcher}
+            repositories={this.state.repositories}
+            selectedRepository={selectedRepository}
+            recentRepositories={this.state.recentRepositories}
+            localRepositoryStateLookup={this.state.localRepositoryStateLookup}
+            filterText={filterText}
+            onFilterTextChanged={this.onRepositoryFilterTextChanged}
+            onSelectionChanged={this.onSelectionChanged}
+            askForConfirmationOnRemoveRepository={
+              this.state.askForConfirmationOnRepositoryRemoval
+            }
+            onRemoveRepository={this.removeRepository}
+            onViewOnGitHub={this.viewOnGitHub}
+            onOpenInShell={this.openInShell}
+            onShowRepository={this.showRepository}
+            onOpenInExternalEditor={this.openInExternalEditor}
+            externalEditorLabel={this.externalEditorLabel}
+            shellLabel={useCustomShell ? undefined : selectedShell}
+          />
+        )}
       </div>
     )
+  }
+
+  private onToggleRepositoryExpanded = (repositoryId: number) => {
+    this.props.dispatcher.toggleRepositoryExpanded(repositoryId)
+  }
+
+  private onToggleRepositoryGroupingModeFromDropdown = () => {
+    const newMode =
+      this.state.repositoryGroupingMode === 'owner' ? 'folder' : 'owner'
+    this.props.dispatcher.setRepositoryGroupingMode(newMode)
+  }
+
+  private onCreateRepositoryFolderFromDropdown = async () => {
+    const name = window.prompt('New folder name')?.trim() ?? ''
+    if (name.length === 0) {
+      return
+    }
+
+    await this.props.dispatcher.createRepositoryFolder(name)
   }
 
   private onToggleRepositorySidebarDockedFromDropdown = () => {

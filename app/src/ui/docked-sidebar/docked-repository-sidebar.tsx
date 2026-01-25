@@ -9,8 +9,7 @@ import {
 } from '../../lib/app-state'
 import { Repository, ILocalRepositoryState } from '../../models/repository'
 import { CloningRepository } from '../../models/cloning-repository'
-import { DockedRepositoriesList } from './docked-repositories-list'
-import { RepositoriesList } from '../repositories-list'
+import { RepositoryListView } from '../repositories-list'
 import { Octicon } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
 import { Button } from '../lib/button'
@@ -244,7 +243,8 @@ export class DockedRepositorySidebar extends React.Component<
           <div className="docked-repositories-list">
             {enableCustomRepositoryFolders() &&
             this.props.groupingMode === 'folder' ? (
-              <DockedRepositoriesList
+              <RepositoryListView
+                groupingMode="folder"
                 dispatcher={this.props.dispatcher}
                 repositories={this.props.repositories}
                 selectedRepository={this.props.selectedRepository}
@@ -252,7 +252,19 @@ export class DockedRepositorySidebar extends React.Component<
                 localRepositoryStateLookup={
                   this.props.localRepositoryStateLookup
                 }
-                groupingMode={this.props.groupingMode}
+                filterText={this.props.filterText}
+                onFilterTextChanged={this.props.onFilterTextChanged}
+                onSelectionChanged={this.props.onSelectionChanged}
+                askForConfirmationOnRemoveRepository={
+                  this.props.askForConfirmationOnRemoveRepository
+                }
+                onRemoveRepository={this.props.onRemoveRepository}
+                onViewOnGitHub={this.props.onViewOnGitHub}
+                onOpenInShell={this.props.onOpenInShell}
+                onShowRepository={this.props.onShowRepository}
+                onOpenInExternalEditor={this.props.onOpenInExternalEditor}
+                externalEditorLabel={this.props.externalEditorLabel}
+                shellLabel={this.props.shellLabel}
                 repositoryFolders={this.props.repositoryFolders}
                 repositoryFolderAssignments={
                   this.props.repositoryFolderAssignments
@@ -260,32 +272,21 @@ export class DockedRepositorySidebar extends React.Component<
                 repositoryOrderInFolders={this.props.repositoryOrderInFolders}
                 expandedRepositories={this.props.expandedRepositories}
                 getWorktreesForRepository={this.props.getWorktreesForRepository}
-                filterText={this.props.filterText}
-                onSelectionChanged={this.props.onSelectionChanged}
-                onFilterTextChanged={this.props.onFilterTextChanged}
-                onRemoveRepository={this.props.onRemoveRepository}
-                onShowRepository={this.props.onShowRepository}
-                onViewOnGitHub={this.props.onViewOnGitHub}
-                onOpenInShell={this.props.onOpenInShell}
-                onOpenInExternalEditor={this.props.onOpenInExternalEditor}
-                externalEditorLabel={this.props.externalEditorLabel}
-                shellLabel={this.props.shellLabel}
-                askForConfirmationOnRemoveRepository={
-                  this.props.askForConfirmationOnRemoveRepository
-                }
                 onToggleRepositoryExpanded={this.onToggleRepositoryExpanded}
               />
             ) : (
-              <RepositoriesList
-                filterText={this.props.filterText}
-                onFilterTextChanged={this.props.onFilterTextChanged}
-                selectedRepository={this.props.selectedRepository}
-                onSelectionChanged={this.props.onSelectionChanged}
+              <RepositoryListView
+                groupingMode="owner"
+                dispatcher={this.props.dispatcher}
                 repositories={this.props.repositories}
+                selectedRepository={this.props.selectedRepository}
                 recentRepositories={this.props.recentRepositories}
                 localRepositoryStateLookup={
                   this.props.localRepositoryStateLookup
                 }
+                filterText={this.props.filterText}
+                onFilterTextChanged={this.props.onFilterTextChanged}
+                onSelectionChanged={this.props.onSelectionChanged}
                 askForConfirmationOnRemoveRepository={
                   this.props.askForConfirmationOnRemoveRepository
                 }
@@ -296,7 +297,6 @@ export class DockedRepositorySidebar extends React.Component<
                 onOpenInExternalEditor={this.props.onOpenInExternalEditor}
                 externalEditorLabel={this.props.externalEditorLabel}
                 shellLabel={this.props.shellLabel}
-                dispatcher={this.props.dispatcher}
               />
             )}
           </div>
