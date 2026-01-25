@@ -103,6 +103,7 @@ import {
   deleteToken,
   IAPICreatePushProtectionBypassResponse,
 } from '../api'
+import { getCopilotCommitInstructions } from '../copilot-commit-instructions'
 import { shell } from '../app-shell'
 import {
   CompareAction,
@@ -5651,7 +5652,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
       const api = API.fromAccount(account)
       try {
-        const response = await api.getDiffChangesCommitMessage(diff)
+        const instructions = await getCopilotCommitInstructions(repository)
+        const response = await api.getDiffChangesCommitMessage(
+          diff,
+          instructions
+        )
 
         this._setCommitMessage(repository, {
           summary: response.title,
